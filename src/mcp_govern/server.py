@@ -129,7 +129,7 @@ async def cercar_contractes(
     import_minim: Annotated[float | None, Field(description="Import mínim d'adjudicació (€)")] = None,
     import_maxim: Annotated[float | None, Field(description="Import màxim d'adjudicació (€)")] = None,
     cerca_lliure: Annotated[str | None, Field(description="Text lliure per cercar a tots els camps")] = None,
-    limit: Annotated[int, Field(description="Nombre màxim de resultats (per defecte 20, màxim 50000)")] = 20,
+    limit: Annotated[int, Field(description="Nombre màxim de resultats (per defecte 50, màxim 50000)")] = 50,
     offset: Annotated[int, Field(description="Desplaçament per a paginació")] = 0,
 ) -> str:
     """Cerca contractes públics al Registre públic de contractes de Catalunya.
@@ -174,7 +174,7 @@ async def cercar_publicacions_pscp(
     adjudicatari: Annotated[str | None, Field(description="Nom o part del nom de l'adjudicatari")] = None,
     import_minim: Annotated[float | None, Field(description="Import mínim d'adjudicació amb IVA (€)")] = None,
     cerca_lliure: Annotated[str | None, Field(description="Text lliure per cercar a tots els camps")] = None,
-    limit: Annotated[int, Field(description="Nombre màxim de resultats (per defecte 20)")] = 20,
+    limit: Annotated[int, Field(description="Nombre màxim de resultats (per defecte 50)")] = 50,
     offset: Annotated[int, Field(description="Desplaçament per a paginació")] = 0,
 ) -> str:
     """Cerca publicacions a la Plataforma de Serveis de Contractació Pública (PSCP).
@@ -220,7 +220,7 @@ async def cercar_subvencions(
     import_minim: Annotated[float | None, Field(description="Import mínim de la subvenció (€)")] = None,
     import_maxim: Annotated[float | None, Field(description="Import màxim de la subvenció (€)")] = None,
     cerca_lliure: Annotated[str | None, Field(description="Text lliure per cercar a tots els camps")] = None,
-    limit: Annotated[int, Field(description="Nombre màxim de resultats (per defecte 20)")] = 20,
+    limit: Annotated[int, Field(description="Nombre màxim de resultats (per defecte 50)")] = 50,
     offset: Annotated[int, Field(description="Desplaçament per a paginació")] = 0,
 ) -> str:
     """Cerca subvencions i ajuts concedits al RAISC (Registre d'Ajuts i Subvencions de Catalunya).
@@ -266,7 +266,7 @@ async def cercar_convocatories(
     tipus_beneficiaris: Annotated[str | None, Field(description="Tipus de beneficiaris")] = None,
     import_minim: Annotated[float | None, Field(description="Import total mínim de la convocatòria (€)")] = None,
     cerca_lliure: Annotated[str | None, Field(description="Text lliure per cercar a tots els camps")] = None,
-    limit: Annotated[int, Field(description="Nombre màxim de resultats (per defecte 20)")] = 20,
+    limit: Annotated[int, Field(description="Nombre màxim de resultats (per defecte 50)")] = 50,
     offset: Annotated[int, Field(description="Desplaçament per a paginació")] = 0,
 ) -> str:
     """Cerca convocatòries de subvencions al RAISC.
@@ -355,7 +355,7 @@ async def estadistiques(
     operacio: Annotated[str, Field(description="Operació d'agregació: 'count' o 'sum'")] = "count",
     camp_suma: Annotated[str | None, Field(description="Camp numèric per sumar (requerit si operacio='sum', ex: 'import_adjudicacio')")] = None,
     filtre: Annotated[str | None, Field(description="Filtre SoQL opcional (ex: \"exercici='2024'\")")] = None,
-    limit: Annotated[int, Field(description="Nombre màxim de grups a retornar")] = 20,
+    limit: Annotated[int, Field(description="Nombre màxim de grups a retornar")] = 50,
 ) -> str:
     """Genera estadístiques agregades sobre contractes o subvencions.
 
@@ -406,7 +406,7 @@ async def cercar_retribucions_alts_carrecs(
     departament: Annotated[str | None, Field(description="Nom del departament")] = None,
     vinculacio: Annotated[str | None, Field(description="Tipus de vinculació (ex: 'Alts càrrecs', 'Personal directiu')")] = None,
     cerca_lliure: Annotated[str | None, Field(description="Text lliure per cercar a tots els camps")] = None,
-    limit: Annotated[int, Field(description="Nombre màxim de resultats")] = 20,
+    limit: Annotated[int, Field(description="Nombre màxim de resultats")] = 50,
     offset: Annotated[int, Field(description="Desplaçament per a paginació")] = 0,
 ) -> str:
     """Cerca retribucions nominals d'alts càrrecs de la Generalitat.
@@ -445,7 +445,7 @@ async def cercar_directius_sector_public(
     carrec: Annotated[str | None, Field(description="Denominació del càrrec (ex: 'Director', 'Gerent', 'President')")] = None,
     entitat: Annotated[str | None, Field(description="Nom de l'entitat pública")] = None,
     departament: Annotated[str | None, Field(description="Nom del departament")] = None,
-    limit: Annotated[int, Field(description="Nombre màxim de resultats")] = 20,
+    limit: Annotated[int, Field(description="Nombre màxim de resultats")] = 50,
     offset: Annotated[int, Field(description="Desplaçament per a paginació")] = 0,
 ) -> str:
     """Cerca retribucions del personal directiu d'entitats del sector públic.
@@ -478,7 +478,7 @@ async def cercar_retribucions_subvencionats(
     empresa: Annotated[str | None, Field(description="Nom de l'entitat subvencionada")] = None,
     carrec: Annotated[str | None, Field(description="Càrrec (ex: 'President', 'Director')")] = None,
     cerca_lliure: Annotated[str | None, Field(description="Text lliure")] = None,
-    limit: Annotated[int, Field(description="Nombre màxim de resultats")] = 20,
+    limit: Annotated[int, Field(description="Nombre màxim de resultats")] = 50,
     offset: Annotated[int, Field(description="Desplaçament per a paginació")] = 0,
 ) -> str:
     """Cerca retribucions dels directius d'entitats que reben subvencions >10.000€.
@@ -557,7 +557,7 @@ async def cercar_pressupostos(
     programa: Annotated[str | None, Field(description="Nom del programa pressupostari")] = None,
     tipus: Annotated[str | None, Field(description="'I' per ingressos, 'D' per despeses")] = None,
     cerca_lliure: Annotated[str | None, Field(description="Text lliure")] = None,
-    limit: Annotated[int, Field(description="Nombre màxim de resultats")] = 20,
+    limit: Annotated[int, Field(description="Nombre màxim de resultats")] = 50,
     offset: Annotated[int, Field(description="Desplaçament per a paginació")] = 0,
 ) -> str:
     """Cerca pressupostos aprovats de la Generalitat de Catalunya.
@@ -590,7 +590,7 @@ async def cercar_pressupostos_municipals(
     municipi: Annotated[str | None, Field(description="Nom del municipi")] = None,
     any_exercici: Annotated[str | None, Field(description="Any de l'exercici")] = None,
     cerca_lliure: Annotated[str | None, Field(description="Text lliure")] = None,
-    limit: Annotated[int, Field(description="Nombre màxim de resultats")] = 20,
+    limit: Annotated[int, Field(description="Nombre màxim de resultats")] = 50,
     offset: Annotated[int, Field(description="Desplaçament per a paginació")] = 0,
 ) -> str:
     """Cerca pressupostos dels ens municipals de Catalunya.
@@ -626,7 +626,7 @@ async def cercar_llocs_treball(
     nom_lloc: Annotated[str | None, Field(description="Nom del lloc de treball")] = None,
     localitat: Annotated[str | None, Field(description="Localitat")] = None,
     any: Annotated[str | None, Field(description="Any")] = None,
-    limit: Annotated[int, Field(description="Nombre màxim de resultats")] = 20,
+    limit: Annotated[int, Field(description="Nombre màxim de resultats")] = 50,
     offset: Annotated[int, Field(description="Desplaçament per a paginació")] = 0,
 ) -> str:
     """Cerca a la Relació de Llocs de Treball (RLT) de la Generalitat.
@@ -657,7 +657,7 @@ async def cercar_llocs_treball(
 async def cercar_oferta_ocupacio(
     any: Annotated[str | None, Field(description="Any de l'oferta")] = None,
     cos: Annotated[str | None, Field(description="Nom del cos o escala")] = None,
-    limit: Annotated[int, Field(description="Nombre màxim de resultats")] = 20,
+    limit: Annotated[int, Field(description="Nombre màxim de resultats")] = 50,
 ) -> str:
     """Cerca l'oferta d'ocupació pública de la Generalitat.
 
@@ -689,7 +689,7 @@ async def cercar_declaracions_activitats(
     departament: Annotated[str | None, Field(description="Nom del departament")] = None,
     carrec: Annotated[str | None, Field(description="Denominació del càrrec")] = None,
     actiu: Annotated[bool | None, Field(description="True per càrrecs actius, False per inactius")] = None,
-    limit: Annotated[int, Field(description="Nombre màxim de resultats")] = 20,
+    limit: Annotated[int, Field(description="Nombre màxim de resultats")] = 50,
     offset: Annotated[int, Field(description="Desplaçament per a paginació")] = 0,
 ) -> str:
     """Cerca declaracions d'activitats públiques i privades d'alts càrrecs.
@@ -728,7 +728,7 @@ async def cercar_agenda_lobbies(
     departament: Annotated[str | None, Field(description="Nom del departament")] = None,
     tema: Annotated[str | None, Field(description="Tema de la reunió")] = None,
     cerca_lliure: Annotated[str | None, Field(description="Text lliure")] = None,
-    limit: Annotated[int, Field(description="Nombre màxim de resultats")] = 20,
+    limit: Annotated[int, Field(description="Nombre màxim de resultats")] = 50,
     offset: Annotated[int, Field(description="Desplaçament per a paginació")] = 0,
 ) -> str:
     """Cerca reunions d'alts càrrecs amb grups d'interès (lobbies).
@@ -762,7 +762,7 @@ async def cercar_viatges_alts_carrecs(
     departament: Annotated[str | None, Field(description="Nom del departament")] = None,
     destinacio: Annotated[str | None, Field(description="País o ciutat de destinació")] = None,
     cerca_lliure: Annotated[str | None, Field(description="Text lliure")] = None,
-    limit: Annotated[int, Field(description="Nombre màxim de resultats")] = 20,
+    limit: Annotated[int, Field(description="Nombre màxim de resultats")] = 50,
     offset: Annotated[int, Field(description="Desplaçament per a paginació")] = 0,
 ) -> str:
     """Cerca viatges a l'estranger d'alts càrrecs de la Generalitat.
@@ -796,7 +796,7 @@ async def cercar_contractes_menors(
     departament: Annotated[str | None, Field(description="Nom del departament")] = None,
     objecte: Annotated[str | None, Field(description="Objecte del contracte")] = None,
     cerca_lliure: Annotated[str | None, Field(description="Text lliure")] = None,
-    limit: Annotated[int, Field(description="Nombre màxim de resultats")] = 20,
+    limit: Annotated[int, Field(description="Nombre màxim de resultats")] = 50,
     offset: Annotated[int, Field(description="Desplaçament per a paginació")] = 0,
 ) -> str:
     """Cerca contractes menors de la Generalitat de Catalunya.
@@ -910,7 +910,7 @@ async def bdns_detall_convocatoria(
 @mcp.tool()
 async def investigar_entitat(
     nom: Annotated[str, Field(description="Nom de l'empresa, entitat, persona o organisme a investigar")],
-    limit_per_font: Annotated[int, Field(description="Resultats màxims per font de dades")] = 10,
+    limit_per_font: Annotated[int, Field(description="Resultats màxims per font de dades")] = 50,
 ) -> str:
     """Investiga una entitat o persona creuant TOTES les fonts de dades disponibles.
 
@@ -1024,7 +1024,7 @@ async def investigar_entitat(
 async def detectar_concentracio_contractes(
     departament: Annotated[str | None, Field(description="Nom del departament a analitzar (opcional, tots si no s'indica)")] = None,
     any: Annotated[str | None, Field(description="Any a analitzar (ex: '2024')")] = None,
-    limit: Annotated[int, Field(description="Top N empreses a mostrar")] = 20,
+    limit: Annotated[int, Field(description="Top N empreses a mostrar")] = 50,
 ) -> str:
     """Detecta concentració anòmala de contractes en poques empreses.
 
