@@ -83,11 +83,22 @@ IMPORTANT: Quan presentes resultats d'investigació:
 mcp = FastMCP("mcp-govern", instructions=_INSTRUCTIONS)
 
 
-def _fmt(records: list[dict]) -> str:
-    """Formata els resultats com a JSON llegible."""
+def _fmt(records: list[dict], total: int | None = None, limit: int = 50, offset: int = 0) -> str:
+    """Formata els resultats com a JSON llegible, indicant el total disponible."""
     if not records:
         return "No s'han trobat resultats."
-    return json.dumps(records, ensure_ascii=False, indent=2)
+    header = ""
+    if total is not None:
+        shown = len(records)
+        if total > shown:
+            header = (
+                f"Mostrant {offset + 1}-{offset + shown} de {total} resultats totals. "
+                f"Hi ha {total - offset - shown} resultats més. "
+                f"Afina la cerca amb filtres o augmenta el limit/offset per veure'ls.\n\n"
+            )
+        else:
+            header = f"Total: {total} resultats.\n\n"
+    return header + json.dumps(records, ensure_ascii=False, indent=2)
 
 
 def _build_where(clauses: list[str]) -> str | None:
@@ -151,7 +162,7 @@ async def cercar_contractes(
     if import_maxim is not None:
         clauses.append(f"import_adjudicacio <= '{import_maxim}'")
 
-    records = await socrata.query(
+    records, total = await socrata.query_with_count(
         "contractes",
         where=_build_where(clauses),
         q=cerca_lliure,
@@ -159,7 +170,7 @@ async def cercar_contractes(
         limit=limit,
         offset=offset,
     )
-    return _fmt(records)
+    return _fmt(records, total, limit, offset)
 
 
 # ---------------------------------------------------------------------------
@@ -196,7 +207,7 @@ async def cercar_publicacions_pscp(
     if import_minim is not None:
         clauses.append(f"import_adjudicacio_amb_iva >= '{import_minim}'")
 
-    records = await socrata.query(
+    records, total = await socrata.query_with_count(
         "pscp",
         where=_build_where(clauses),
         q=cerca_lliure,
@@ -204,7 +215,7 @@ async def cercar_publicacions_pscp(
         limit=limit,
         offset=offset,
     )
-    return _fmt(records)
+    return _fmt(records, total, limit, offset)
 
 
 # ---------------------------------------------------------------------------
@@ -244,7 +255,7 @@ async def cercar_subvencions(
     if import_maxim is not None:
         clauses.append(f"import_subvenci_pr_stec_ajut <= '{import_maxim}'")
 
-    records = await socrata.query(
+    records, total = await socrata.query_with_count(
         "subvencions",
         where=_build_where(clauses),
         q=cerca_lliure,
@@ -252,7 +263,7 @@ async def cercar_subvencions(
         limit=limit,
         offset=offset,
     )
-    return _fmt(records)
+    return _fmt(records, total, limit, offset)
 
 
 # ---------------------------------------------------------------------------
@@ -286,7 +297,7 @@ async def cercar_convocatories(
     if import_minim is not None:
         clauses.append(f"import_total_convocat_ria >= '{import_minim}'")
 
-    records = await socrata.query(
+    records, total = await socrata.query_with_count(
         "convocatories",
         where=_build_where(clauses),
         q=cerca_lliure,
@@ -294,7 +305,7 @@ async def cercar_convocatories(
         limit=limit,
         offset=offset,
     )
-    return _fmt(records)
+    return _fmt(records, total, limit, offset)
 
 
 # ---------------------------------------------------------------------------
@@ -308,12 +319,12 @@ async def detall_contracte(
 
     Retorna tots els lots i la informació completa del contracte.
     """
-    records = await socrata.query(
+    records, total = await socrata.query_with_count(
         "contractes",
         where=f"codi_expedient='{codi_expedient}'",
         limit=100,
     )
-    return _fmt(records)
+    return _fmt(records, total)
 
 
 # ---------------------------------------------------------------------------
@@ -337,12 +348,12 @@ async def detall_subvencio(
     if codi_bdns:
         clauses.append(f"codi_bdns='{codi_bdns}'")
 
-    records = await socrata.query(
+    records, total = await socrata.query_with_count(
         "subvencions",
         where=_build_where(clauses),
         limit=100,
     )
-    return _fmt(records)
+    return _fmt(records, total)
 
 
 # ---------------------------------------------------------------------------
@@ -383,7 +394,7 @@ async def estadistiques(
 
     order = "total DESC"
 
-    records = await socrata.query(
+    records, total = await socrata.query_with_count(
         dataset,
         select=select,
         where=filtre,
@@ -391,7 +402,7 @@ async def estadistiques(
         order=order,
         limit=limit,
     )
-    return _fmt(records)
+    return _fmt(records, total)
 
 
 # ===========================================================================
@@ -428,7 +439,7 @@ async def cercar_retribucions_alts_carrecs(
     if vinculacio:
         clauses.append(f"upper(vinculacio) like upper('%{vinculacio}%')")
 
-    records = await socrata.query(
+    records, total = await socrata.query_with_count(
         "retrib_alts_carrecs",
         where=_build_where(clauses),
         q=cerca_lliure,
@@ -436,7 +447,7 @@ async def cercar_retribucions_alts_carrecs(
         limit=limit,
         offset=offset,
     )
-    return _fmt(records)
+    return _fmt(records, total, limit, offset)
 
 
 @mcp.tool()
@@ -463,14 +474,14 @@ async def cercar_directius_sector_public(
     if departament:
         clauses.append(f"upper(departament) like upper('%{departament}%')")
 
-    records = await socrata.query(
+    records, total = await socrata.query_with_count(
         "retrib_directius_sector_public",
         where=_build_where(clauses),
         order="retribuci_fixa_anual_prevista DESC",
         limit=limit,
         offset=offset,
     )
-    return _fmt(records)
+    return _fmt(records, total, limit, offset)
 
 
 @mcp.tool()
@@ -491,7 +502,7 @@ async def cercar_retribucions_subvencionats(
     if carrec:
         clauses.append(f"upper(c_rrec) like upper('%{carrec}%')")
 
-    records = await socrata.query(
+    records, total = await socrata.query_with_count(
         "retrib_directius_subvencionats",
         where=_build_where(clauses),
         q=cerca_lliure,
@@ -499,7 +510,7 @@ async def cercar_retribucions_subvencionats(
         limit=limit,
         offset=offset,
     )
-    return _fmt(records)
+    return _fmt(records, total, limit, offset)
 
 
 @mcp.tool()
@@ -536,13 +547,13 @@ async def consultar_taules_salarials(
 
     order = "any DESC" if dataset_key == "taules_retrib_alts_carrecs" else "total_anual DESC"
 
-    records = await socrata.query(
+    records, total = await socrata.query_with_count(
         dataset_key,
         where=_build_where(clauses),
         order=order,
         limit=limit,
     )
-    return _fmt(records)
+    return _fmt(records, total)
 
 
 # ===========================================================================
@@ -574,7 +585,7 @@ async def cercar_pressupostos(
     if tipus:
         clauses.append(f"ingr_s_despesa='{tipus}'")
 
-    records = await socrata.query(
+    records, total = await socrata.query_with_count(
         "pressupostos",
         where=_build_where(clauses),
         q=cerca_lliure,
@@ -582,7 +593,7 @@ async def cercar_pressupostos(
         limit=limit,
         offset=offset,
     )
-    return _fmt(records)
+    return _fmt(records, total, limit, offset)
 
 
 @mcp.tool()
@@ -603,7 +614,7 @@ async def cercar_pressupostos_municipals(
     if any_exercici:
         clauses.append(f"any_exercici='{any_exercici}'")
 
-    records = await socrata.query(
+    records, total = await socrata.query_with_count(
         "pressupostos_municipals",
         where=_build_where(clauses),
         q=cerca_lliure,
@@ -611,7 +622,7 @@ async def cercar_pressupostos_municipals(
         limit=limit,
         offset=offset,
     )
-    return _fmt(records)
+    return _fmt(records, total, limit, offset)
 
 
 # ===========================================================================
@@ -644,13 +655,13 @@ async def cercar_llocs_treball(
     if any:
         clauses.append(f"any='{any}'")
 
-    records = await socrata.query(
+    records, total = await socrata.query_with_count(
         dataset_key,
         where=_build_where(clauses),
         limit=limit,
         offset=offset,
     )
-    return _fmt(records)
+    return _fmt(records, total, limit, offset)
 
 
 @mcp.tool()
@@ -669,13 +680,13 @@ async def cercar_oferta_ocupacio(
     if cos:
         clauses.append(f"upper(cos) like upper('%{cos}%')")
 
-    records = await socrata.query(
+    records, total = await socrata.query_with_count(
         "oferta_ocupacio",
         where=_build_where(clauses),
         order="any DESC, places DESC",
         limit=limit,
     )
-    return _fmt(records)
+    return _fmt(records, total)
 
 
 # ===========================================================================
@@ -711,14 +722,14 @@ async def cercar_declaracions_activitats(
     if actiu is not None:
         clauses.append(f"situaci_carrec='{'Actiu' if actiu else 'Inactiu'}'")
 
-    records = await socrata.query(
+    records, total = await socrata.query_with_count(
         "declaracions_activitats",
         where=_build_where(clauses),
         order="data_nomenament DESC",
         limit=limit,
         offset=offset,
     )
-    return _fmt(records)
+    return _fmt(records, total, limit, offset)
 
 
 @mcp.tool()
@@ -745,7 +756,7 @@ async def cercar_agenda_lobbies(
     if tema:
         clauses.append(f"upper(tema) like upper('%{tema}%')")
 
-    records = await socrata.query(
+    records, total = await socrata.query_with_count(
         "agenda_lobbies",
         where=_build_where(clauses),
         q=cerca_lliure,
@@ -753,7 +764,7 @@ async def cercar_agenda_lobbies(
         limit=limit,
         offset=offset,
     )
-    return _fmt(records)
+    return _fmt(records, total, limit, offset)
 
 
 @mcp.tool()
@@ -778,7 +789,7 @@ async def cercar_viatges_alts_carrecs(
     if destinacio:
         clauses.append(f"upper(destinaci) like upper('%{destinacio}%')")
 
-    records = await socrata.query(
+    records, total = await socrata.query_with_count(
         "viatges_alts_carrecs",
         where=_build_where(clauses),
         q=cerca_lliure,
@@ -786,7 +797,7 @@ async def cercar_viatges_alts_carrecs(
         limit=limit,
         offset=offset,
     )
-    return _fmt(records)
+    return _fmt(records, total, limit, offset)
 
 
 @mcp.tool()
@@ -814,7 +825,7 @@ async def cercar_contractes_menors(
     if objecte:
         clauses.append(f"upper(objecte_del_contracte) like upper('%{objecte}%')")
 
-    records = await socrata.query(
+    records, total = await socrata.query_with_count(
         "contractes_menors",
         where=_build_where(clauses),
         q=cerca_lliure,
@@ -822,7 +833,7 @@ async def cercar_contractes_menors(
         limit=limit,
         offset=offset,
     )
-    return _fmt(records)
+    return _fmt(records, total, limit, offset)
 
 
 # ===========================================================================
@@ -1042,7 +1053,7 @@ async def detectar_concentracio_contractes(
     where = _build_where(clauses)
 
     # Nombre de contractes per empresa
-    count_records = await socrata.query(
+    count_records, total = await socrata.query_with_count(
         "contractes",
         select="adjudicatari, count(*) as num_contractes, sum(import_adjudicacio) as import_total",
         where=where,
@@ -1084,7 +1095,7 @@ async def detectar_fraccionament(
         clauses.append(f"any='{exercici}'")
 
     # Obtenir tots els contractes menors de l'empresa
-    records = await socrata.query(
+    records, total = await socrata.query_with_count(
         "contractes_menors",
         where=_build_where(clauses),
         order="import_adjudicat_sense_iva DESC",
@@ -1112,10 +1123,14 @@ async def detectar_fraccionament(
     import_max = max(imports) if imports else 0
 
     has_alerts = False
+    analitzats = len(records)
+    total_real = total if total is not None else analitzats
     lines = [f"# ANÀLISI DE FRACCIONAMENT: {empresa.upper()}\n"]
     if exercici:
         lines.append(f"Any: {exercici}")
-    lines.append(f"Total contractes menors: {total}")
+    lines.append(f"Total contractes menors trobats: {total_real}")
+    if total_real > analitzats:
+        lines.append(f"Analitzats: {analitzats} de {total_real} (augmenta el limit per analitzar-los tots)")
     lines.append(f"Import total acumulat: {import_total:,.2f} €")
     lines.append(f"Import mitjà per contracte: {import_mitja:,.2f} €")
     lines.append(f"Import màxim: {import_max:,.2f} €")
