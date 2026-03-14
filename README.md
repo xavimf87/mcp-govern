@@ -1,17 +1,19 @@
 # mcp-govern
 
-Servidor MCP (Model Context Protocol) expert en **transparencia publica** i **deteccio de patrons de corrupcio** a partir de dades obertes del **Govern de Catalunya** i la **BDNS** d'Espanya.
+Servidor MCP (Model Context Protocol) expert en **transparencia publica** i **deteccio de patrons de corrupcio** a partir de dades obertes del **Govern de Catalunya**, l'**Ajuntament de Barcelona** i fonts de dades de tota **Espanya**.
 
-Contractes, subvencions, sous, pressupostos, lobbies, viatges — 26 tools que creuen automaticament 30+ datasets per trobar anomalies, fraccionaments i conflictes d'interes.
+Contractes, subvencions, sous, pressupostos, lobbies, viatges, sentencies judicials — 34 tools que creuen automaticament 45+ datasets per trobar anomalies, fraccionaments i conflictes d'interes.
 
 ## Que es un MCP?
 
-Un MCP (Model Context Protocol) es un servidor que dona "superpoderes" a Claude (o altres LLMs). En aquest cas, permet que Claude consulti en temps real les bases de dades publiques del Govern de Catalunya i d'Espanya. Tu preguntes en llenguatge natural i Claude fa les consultes per tu.
+Un MCP (Model Context Protocol) es un servidor que dona "superpoderes" a Claude (o altres LLMs). En aquest cas, permet que Claude consulti en temps real les bases de dades publiques del Govern de Catalunya, l'Ajuntament de Barcelona i d'Espanya. Tu preguntes en llenguatge natural i Claude fa les consultes per tu.
 
 Per exemple:
 - *"Investiga Telefonica: contractes, subvencions, reunions amb lobbies"* → Claude creua 10 bases de dades en paral·lel
 - *"Quant cobra el president de la Generalitat?"* → Claude consulta les taules retributives oficials
 - *"Quines empreses acaparen els contractes menors de Salut?"* → Claude detecta concentracio sospitosa
+- *"Busca sentencies de corrupcio a l'Audiencia Nacional"* → Claude cerca al CENDOJ
+- *"Quin es el pressupost de despeses de Barcelona?"* → Claude consulta l'Open Data BCN
 
 **No necessites saber programar.** Nomes cal instal·lar-lo i preguntar.
 
@@ -21,6 +23,9 @@ Per exemple:
 |---|---|---|
 | [analisi.transparenciacatalunya.cat](https://analisi.transparenciacatalunya.cat) | Catalunya | Socrata (SODA) |
 | [BDNS](https://www.pap.hacienda.gob.es/bdnstrans/) | Espanya | REST |
+| [datos.gob.es](https://datos.gob.es) | Espanya | CKAN |
+| [CGPJ](https://www.poderjudicial.es) | Espanya | REST / PC-Axis |
+| [Open Data BCN](https://opendata-ajuntament.barcelona.cat) | Barcelona | CKAN |
 
 No requereix autenticacio ni API keys. Totes les dades son publiques.
 
@@ -229,7 +234,7 @@ Quan presenta resultats d'investigacio, Claude:
 - **No acusa directament** — presenta els patrons i deixa que l'usuari tregui conclusions
 - Suggereix sempre **linies d'investigacio addicionals** per aprofundir
 
-## Tools disponibles (26)
+## Tools disponibles (34)
 
 ### Investigacio
 
@@ -294,6 +299,29 @@ Quan presenta resultats d'investigacio, Claude:
 | `cercar_declaracions_activitats` | Declaracions d'activitats publiques i privades. Participacions, consells, patrimoni. |
 | `cercar_agenda_lobbies` | Reunions d'alts carrecs amb grups d'interes (lobbies). Qui es reuneix amb qui, sobre que. |
 | `cercar_viatges_alts_carrecs` | Viatges a l'estranger. Destinacio, motiu, despeses desglossades. |
+
+### datos.gob.es (Espanya)
+
+| Tool | Descripcio |
+|---|---|
+| `datosgob_cercar_datasets` | Cerca datasets al cataleg nacional de dades obertes (113.000+ datasets). Filtra per tematica, organisme publicador i format. |
+| `datosgob_detall_dataset` | Detall complet d'un dataset de datos.gob.es amb distribucions i metadades. |
+
+### CGPJ - Poder Judicial (Espanya)
+
+| Tool | Descripcio |
+|---|---|
+| `cgpj_dades_corrupcio` | Repositori de processos per corrupcio del CGPJ: macrocauses, Audiencia Nacional i tribunals superiors. |
+| `cgpj_cercar_sentencies` | Cercador de sentencies al CENDOJ. Filtra per text, organ judicial, tipus de resolucio i dates. |
+| `cgpj_estadistiques_judicials` | Estadistiques judicials per tema (penal, civil, contenciós), territori i any. |
+
+### Open Data Barcelona
+
+| Tool | Descripcio |
+|---|---|
+| `bcn_cercar_datasets` | Cerca entre 553 datasets municipals de Barcelona: pressupostos, contractes, seguretat, transport, medi ambient, habitatge. |
+| `bcn_detall_dataset` | Detall d'un dataset de Barcelona amb la llista de recursos i els seus resource_id. |
+| `bcn_obtenir_dades` | Obte dades d'un recurs concret de Barcelona via l'API datastore. |
 
 ### Utilitats
 
@@ -370,6 +398,30 @@ Usa `cercar_viatges_alts_carrecs`. Retorna destinacio, motiu, despeses desglossa
 
 Usa `cercar_pressupostos_municipals` amb `municipi="Girona"`, `any_exercici="2024"`.
 
+### Sentencies de corrupcio
+
+> Busca sentencies sobre malversacio a l'Audiencia Nacional dels ultims 2 anys.
+
+Usa `cgpj_cercar_sentencies` amb `text="malversación"`, `organ="AN"`.
+
+### Processos per corrupcio
+
+> Quines macrocauses de corrupcio te registrades el CGPJ?
+
+Usa `cgpj_dades_corrupcio` per obtenir el repositori de processos per corrupcio.
+
+### Dades obertes de Barcelona
+
+> Quin es el pressupost de despeses de l'Ajuntament de Barcelona?
+
+Usa `bcn_detall_dataset` amb `dataset_name="pressupost-despeses"` per obtenir els recursos, despres `bcn_obtenir_dades` per consultar les dades.
+
+### Datasets nacionals
+
+> Quins datasets de contractacio publica hi ha a datos.gob.es?
+
+Usa `datosgob_cercar_datasets` amb `query="contratos públicos"`.
+
 ## Datasets
 
 ### Contractacio
@@ -428,6 +480,58 @@ Usa `cercar_pressupostos_municipals` amb `municipi="Girona"`, `any_exercici="202
 | `viatges_alts_carrecs` | `5kte-hque` | Viatges a l'estranger |
 | `docencia_alts_carrecs` | `w7dd-bwpy` | Docencia universitaria |
 
+### Fiscalitat
+
+| Clau | ID | Font |
+|---|---|---|
+| `impost_successions_composicio` | `2jqq-fyu8` | Impost sobre successions per composicio de l'herencia |
+| `impost_successions_quota` | `xaxt-fghh` | Impost sobre successions - calcul de la quota final |
+
+### Carrecs locals
+
+| Clau | ID | Font |
+|---|---|---|
+| `retrib_carrecs_locals` | `bepu-nr6b` | Indicadors retributius dels carrecs electes locals |
+
+### Participacio
+
+| Clau | ID | Font |
+|---|---|---|
+| `enquestes_opinio` | `gp4k-sxxn` | Microdades d'estudis d'opinio |
+| `participacio_ciutadana` | `62wr-uxxx` | Panel de participacio ciutadana |
+
+### Contractacio local
+
+| Clau | ID | Font |
+|---|---|---|
+| `relic` | `t3wj-j4pu` | Registre public de contractes d'ens locals (RELIC) |
+
+### Serveis socials
+
+| Clau | ID | Font |
+|---|---|---|
+| `serveis_residencials_violencia` | `vqd5-kgke` | Serveis residencials per a dones en situacio de violencia |
+
+### Educacio
+
+| Clau | ID | Font |
+|---|---|---|
+| `centres_fp` | `iyus-443e` | Centres de formacio professional integrada |
+
+### Infraestructures i medi ambient
+
+| Clau | ID | Font |
+|---|---|---|
+| `ports` | `frcw-v3xi` | Ports de Catalunya |
+| `depuradores` | `k288-dig3` | Sistemes de sanejament i depuradores |
+| `economia_circular` | `5jbn-usiv` | Iniciatives Catalunya Circular |
+
+### Agricultura
+
+| Clau | ID | Font |
+|---|---|---|
+| `explotacions_agraries` | `uwe8-jqcu` | Parcel·les i cultius de les explotacions agraries (DUN) |
+
 ### BDNS (API REST)
 
 | Endpoint | Descripcio |
@@ -435,6 +539,44 @@ Usa `cercar_pressupostos_municipals` amb `municipi="Girona"`, `any_exercici="202
 | `/api/concesiones/busqueda` | Concessions de tota Espanya (amb noms reals) |
 | `/api/convocatorias/busqueda` | Convocatories estatals |
 | `/api/convocatorias?numConv=X` | Detall convocatoria |
+
+### datos.gob.es (API REST)
+
+| Endpoint | Descripcio |
+|---|---|
+| `/apidata/catalog/dataset.json` | Cataleg de 113.000+ datasets nacionals |
+| `/apidata/catalog/distribution.json` | Distribucions (fitxers i APIs) dels datasets |
+
+### CGPJ (API REST / PC-Axis)
+
+| Endpoint | Descripcio |
+|---|---|
+| `/stj/pcaxis/juzgados.json` | Estadistiques judicials |
+| `/stj/pcaxis/corrupcion.json` | Processos per corrupcio |
+| `/search/indexAN` | Cercador de sentencies CENDOJ |
+
+### Open Data BCN (API CKAN)
+
+| Endpoint | Descripcio |
+|---|---|
+| `/data/api/action/package_search` | Cerca de datasets municipals |
+| `/data/api/action/package_show` | Detall d'un dataset |
+| `/data/api/action/datastore_search` | Consulta de dades d'un recurs |
+
+Datasets destacats de Barcelona:
+
+| Clau | Dataset | Area |
+|---|---|---|
+| `pressupost_despeses` | `pressupost-despeses` | Pressupostos |
+| `pressupost_ingressos` | `pressupost-ingressos` | Pressupostos |
+| `contractes_menors` | `contractes-menors` | Contractacio |
+| `relacio_contractistes` | `relacio-contractistes` | Contractacio |
+| `incidents_gub` | `incidents-gestionats-gub` | Seguretat |
+| `qualitat_aire` | `qualitat-aire-detall-bcn` | Medi ambient |
+| `habitatges_turistic` | `habitatges-us-turistic` | Habitatge |
+| `renda_llars` | `renda-disponible-llars-bcn` | Economia |
+| `bicing` | `bicing` | Transport |
+| `obres` | `obres` | Urbanisme |
 
 ## Llicencia
 
