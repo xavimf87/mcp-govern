@@ -75,3 +75,18 @@ async def obtenir_materies() -> dict:
         )
         resp.raise_for_status()
         return resp.json()
+
+
+async def obtenir_sumari_borme(data: str) -> dict:
+    """Obté el sumari del BORME per una data concreta.
+
+    Args:
+        data: Data en format YYYYMMDD (ex: '20260314').
+    """
+    async with httpx.AsyncClient(timeout=REQUEST_TIMEOUT) as client:
+        resp = await client.get(
+            f"{BASE_URL}/borme/sumario/{data}",
+            headers={"Accept": "application/json"},
+        )
+        resp.raise_for_status()
+        return resp.json()

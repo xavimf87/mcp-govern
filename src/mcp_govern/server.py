@@ -8,7 +8,7 @@ from typing import Annotated
 from mcp.server.fastmcp import FastMCP
 from pydantic import Field
 
-from . import barcelona, bdns, boe, cgpj, datosgob, socrata
+from . import barcelona, bde, bdns, boe, cgpj, datosgob, ine, pge, socrata
 from .datasets import DATASETS
 
 _INSTRUCTIONS = """\
@@ -27,6 +27,11 @@ i cercador de sentències del CENDOJ.
 seguretat (incidents GUB), transport, medi ambient, habitatge i economia.
 - BOE (Espanya): Butlletí Oficial de l'Estat — nomenaments, cessaments, disposicions, \
 contractes publicats i legislació consolidada.
+- BORME (Espanya): Butlletí Oficial del Registre Mercantil — actes inscrits d'empreses \
+per província (constitucions, nomenaments d'administradors, cessaments, dissolucions).
+- INE (Espanya): Institut Nacional d'Estadística — 111 operacions estadístiques (IPC, EPA, PIB, etc.).
+- Banc d'Espanya: Sèries temporals financeres (Euribor, deute públic, tipus d'interès BCE).
+- PGE (Espanya): Pressupostos Generals de l'Estat — despeses i ingressos per ministeris.
 
 ÚS DE LES TOOLS:
 - Sou d'un càrrec (president, conseller...): cercar_retribucions_alts_carrecs amb 'carrec'
@@ -44,6 +49,10 @@ contractes publicats i legislació consolidada.
 - Nomenaments i cessaments oficials: boe_sumari (secció 2A)
 - Contractes publicats al BOE: boe_sumari (secció 5A)
 - Legislació consolidada: boe_legislacio
+- Registre mercantil (BORME): borme_sumari (actes d'empreses per província)
+- Estadístiques INE (IPC, EPA...): ine_operacions, ine_taules, ine_dades_taula
+- Dades financeres BdE (Euribor...): bde_serie, bde_series_destacades
+- Pressupostos de l'Estat (PGE): pge_estructura
 
 PATRONS DE CORRUPCIÓ — Quan l'usuari demani investigar o analitzar, aplica \
 proactivament aquestes estratègies:
@@ -1663,6 +1672,308 @@ async def boe_departaments() -> str:
     data = result.get("data", {})
     records = [{"codi": k, "nom": v} for k, v in sorted(data.items(), key=lambda x: x[1])]
     return json.dumps(records, ensure_ascii=False, indent=2)
+
+
+# ===========================================================================
+# BORME — Boletín Oficial del Registro Mercantil
+# ===========================================================================
+
+
+@mcp.tool()
+async def borme_sumari(
+    data: Annotated[str, Field(description="Data en format YYYYMMDD (ex: '20260314')")],
+    provincia: Annotated[str | None, Field(description=(
+        "Filtrar per província (text parcial). Ex: 'Barcelona', 'Madrid', 'Valencia'"
+    ))] = None,
+) -> str:
+    """Consulta el sumari diari del BORME (Registre Mercantil).
+
+    Retorna els actes inscrits d'empreses per província: constitucions,
+    nomenaments d'administradors, cessaments, dissolucions, canvis d'objecte
+    social, ampliacions de capital, etc.
+
+    Cada entrada inclou un PDF amb els detalls de les inscripcions.
+    Útil per investigar activitat societària i creuar amb contractes públics.
+    """
+    try:
+        result = await boe.obtenir_sumari_borme(data)
+    except Exception:
+        return f"Error consultant el BORME per la data {data}. Comprova que sigui vàlida (YYYYMMDD) i dia laborable."
+
+    if result.get("status", {}).get("code") != "200":
+        return f"Error consultant el BORME per la data {data}."
+
+    items = []
+    for diario in _normalitza_items(result.get("data", {}).get("sumario", {}).get("diario", [])):
+        for seccion in _normalitza_items(diario.get("seccion", [])):
+            for item in _normalitza_items(seccion.get("item", [])):
+                url_pdf = item.get("url_pdf", {})
+                if isinstance(url_pdf, dict):
+                    url_pdf = url_pdf.get("texto", "")
+                items.append({
+                    "seccio": seccion.get("nombre", ""),
+                    "provincia": item.get("titulo", ""),
+                    "identificador": item.get("identificador", ""),
+                    "url_pdf": url_pdf,
+                })
+
+    if provincia:
+        prov_lower = provincia.lower()
+        items = [i for i in items if prov_lower in i.get("provincia", "").lower()]
+
+    if not items:
+        return f"No s'han trobat actes al BORME del {data}."
+
+    total = len(items)
+    header = f"Total: {total} publicacions al BORME del {data}.\n\n"
+    return header + json.dumps(items[:50], ensure_ascii=False, indent=2)
+
+
+# ===========================================================================
+# INE — Instituto Nacional de Estadística
+# ===========================================================================
+
+
+@mcp.tool()
+async def ine_operacions(
+    query: Annotated[str | None, Field(description=(
+        "Text per filtrar operacions (ex: 'IPC', 'empleo', 'población', 'PIB')"
+    ))] = None,
+) -> str:
+    """Llista les operacions estadístiques disponibles a l'INE.
+
+    Hi ha 111 operacions: IPC, EPA (enquesta de població activa),
+    PIB, demografia, cens, turisme, etc. Usa aquesta tool primer
+    per trobar el codi d'operació, i després ine_taules per veure
+    les taules disponibles.
+    """
+    try:
+        ops = await ine.llistar_operacions()
+    except Exception:
+        return "Error consultant l'INE."
+
+    if query:
+        q_lower = query.lower()
+        ops = [o for o in ops if q_lower in json.dumps(o, ensure_ascii=False).lower()]
+
+    if not ops:
+        return "No s'han trobat operacions."
+
+    records = []
+    for op in ops[:50]:
+        records.append({
+            "id": op.get("Id", op.get("id", "")),
+            "codi": op.get("Cod_IOE", op.get("cod_IOE", "")),
+            "nom": op.get("Nombre", op.get("nombre", "")),
+        })
+
+    header = f"Total: {len(ops)} operacions trobades.\n\n"
+    return header + json.dumps(records, ensure_ascii=False, indent=2)
+
+
+@mcp.tool()
+async def ine_taules(
+    operacio: Annotated[str, Field(description=(
+        "Codi de l'operació (ex: 'IPC', 'EPA', 'ECV', 'PIB'). "
+        "Obtingut via ine_operacions."
+    ))],
+) -> str:
+    """Llista les taules disponibles d'una operació estadística de l'INE.
+
+    Retorna els IDs de taula necessaris per consultar dades amb ine_dades_taula.
+    """
+    try:
+        taules = await ine.llistar_taules(operacio)
+    except Exception:
+        return f"Error consultant les taules de l'operació '{operacio}'."
+
+    if not taules:
+        return f"No s'han trobat taules per l'operació '{operacio}'."
+
+    records = []
+    for t in taules[:50]:
+        records.append({
+            "id": t.get("Id", t.get("id", "")),
+            "nom": t.get("Nombre", t.get("nombre", "")),
+        })
+
+    header = f"Total: {len(taules)} taules per '{operacio}'.\n\n"
+    return header + json.dumps(records, ensure_ascii=False, indent=2)
+
+
+@mcp.tool()
+async def ine_dades_taula(
+    taula_id: Annotated[int, Field(description="ID numèric de la taula (obtingut via ine_taules)")],
+    nult: Annotated[int, Field(description="Nombre d'últims períodes a retornar (per defecte 5)")] = 5,
+) -> str:
+    """Obté les dades d'una taula estadística de l'INE.
+
+    Retorna els valors dels últims períodes per a la taula indicada.
+    Inclou IPC, atur, població, renda, PIB i molts altres indicadors.
+    """
+    try:
+        dades = await ine.obtenir_dades_taula(taula_id, nult=nult)
+    except Exception:
+        return f"Error obtenint dades de la taula {taula_id}."
+
+    if not dades:
+        return f"No s'han trobat dades per la taula {taula_id}."
+
+    return json.dumps(dades, ensure_ascii=False, indent=2)
+
+
+@mcp.tool()
+async def ine_serie(
+    serie: Annotated[str, Field(description="Codi de la sèrie (ex: 'IPC206449')")],
+    nult: Annotated[int, Field(description="Nombre d'últims períodes (per defecte 10)")] = 10,
+) -> str:
+    """Obté una sèrie temporal concreta de l'INE.
+
+    Útil quan es coneix el codi de sèrie exacte.
+    """
+    try:
+        dades = await ine.obtenir_serie(serie, nult=nult)
+    except Exception:
+        return f"Error obtenint la sèrie '{serie}'."
+
+    if not dades:
+        return f"No s'han trobat dades per la sèrie '{serie}'."
+
+    return json.dumps(dades, ensure_ascii=False, indent=2)
+
+
+# ===========================================================================
+# BdE — Banc d'Espanya
+# ===========================================================================
+
+
+@mcp.tool()
+async def bde_serie(
+    series: Annotated[str, Field(description=(
+        "Codis de sèries separats per comes. Exemples: "
+        "'D_1NBAF472' (Euribor 1 any), "
+        "'D_1NBAF474' (Euribor 3 mesos), "
+        "'D_1AEA8S1' (IPC general), "
+        "'D_1BE9994' (Deute públic), "
+        "'D_1NBAF468' (Tipus interès BCE)"
+    ))],
+) -> str:
+    """Obté l'últim valor de sèries financeres del Banc d'Espanya.
+
+    Inclou Euribor, IPC, deute públic, tipus d'interès del BCE, etc.
+    Per contextualitzar investigacions amb dades macroeconòmiques.
+    """
+    try:
+        result = await bde.obtenir_ultim_valor(series)
+    except Exception:
+        return f"Error consultant el Banc d'Espanya per les sèries '{series}'."
+
+    if not result:
+        return "No s'han trobat dades."
+
+    records = []
+    for item in result if isinstance(result, list) else [result]:
+        records.append({
+            "serie": item.get("serie", ""),
+            "descripcio": item.get("descripcionCorta", ""),
+            "valor": item.get("valor"),
+            "data": item.get("fechaValor", ""),
+            "unitat": item.get("simbolo", ""),
+            "frequencia": item.get("codFrecuencia", ""),
+        })
+
+    return json.dumps(records, ensure_ascii=False, indent=2)
+
+
+@mcp.tool()
+async def bde_series_destacades() -> str:
+    """Mostra les sèries financeres més destacades del Banc d'Espanya.
+
+    Retorna l'últim valor de: Euribor (1 any, 3 i 6 mesos),
+    tipus d'interès del BCE, IPC general i deute públic.
+    """
+    codis = ",".join(bde.SERIES_DESTACADES.values())
+    try:
+        result = await bde.obtenir_ultim_valor(codis)
+    except Exception:
+        return "Error consultant el Banc d'Espanya."
+
+    if not result:
+        return "No s'han trobat dades."
+
+    records = []
+    for item in result if isinstance(result, list) else [result]:
+        records.append({
+            "serie": item.get("serie", ""),
+            "descripcio": item.get("descripcionCorta", ""),
+            "valor": item.get("valor"),
+            "data": item.get("fechaValor", ""),
+            "unitat": item.get("simbolo", ""),
+        })
+
+    return json.dumps(records, ensure_ascii=False, indent=2)
+
+
+# ===========================================================================
+# PGE — Pressupostos Generals de l'Estat
+# ===========================================================================
+
+
+@mcp.tool()
+async def pge_estructura(
+    any_: Annotated[int, Field(description=(
+        "Any dels pressupostos (2015-2025). Ex: 2024"
+    ))] = 2024,
+) -> str:
+    """Obté l'estructura dels Pressupostos Generals de l'Estat.
+
+    Retorna l'arbre de seccions (ministeris), subsectors i programes
+    pressupostaris amb enllaços als fitxers CSV/XML/PDF de detall.
+    Disponible des de 2015 fins a 2025.
+    """
+    if any_ not in pge.ANYS_DISPONIBLES:
+        return f"Any {any_} no disponible. Anys vàlids: {pge.ANYS_DISPONIBLES}"
+
+    try:
+        index = await pge.obtenir_index(any_)
+    except Exception:
+        return f"Error obtenint els PGE de l'any {any_}."
+
+    # Extreure seccions (ministeris) — l'XML té 2 nivells: Gastos > SAL > Seccions
+    estructura = index.get("Estructura", {})
+    sector = estructura.get("Estructura", {})
+    if isinstance(sector, dict):
+        seccions_raw = sector.get("Estructura", [])
+    else:
+        seccions_raw = sector
+    if isinstance(seccions_raw, dict):
+        seccions_raw = [seccions_raw]
+
+    records = []
+    for seccio in seccions_raw:
+        subsectors = seccio.get("Estructura", [])
+        if isinstance(subsectors, dict):
+            subsectors = [subsectors]
+
+        # Collect CSV links
+        csv_links = []
+        for sub in subsectors:
+            informe = sub.get("Informe", {})
+            if isinstance(informe, dict):
+                for enllac in _normalitza_items(informe.get("Enlace", [])):
+                    url = enllac.get("url", "")
+                    if url.endswith(".CSV") or url.endswith(".csv"):
+                        csv_links.append(url)
+
+        records.append({
+            "codi": seccio.get("codigo", ""),
+            "nom": seccio.get("literal", ""),
+            "subsectors": len(subsectors),
+            "csv_disponibles": len(csv_links),
+        })
+
+    header = f"PGE {any_}: {len(records)} seccions (ministeris).\n\n"
+    return header + json.dumps(records, ensure_ascii=False, indent=2)
 
 
 def main():

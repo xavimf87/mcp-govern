@@ -2,7 +2,7 @@
 
 Servidor MCP (Model Context Protocol) expert en **transparencia publica** i **deteccio de patrons de corrupcio** a partir de dades obertes del **Govern de Catalunya**, l'**Ajuntament de Barcelona** i fonts de dades de tota **Espanya**.
 
-Contractes, subvencions, sous, pressupostos, lobbies, viatges, sentencies judicials, nomenaments del BOE — 39 tools que creuen automaticament 45+ datasets per trobar anomalies, fraccionaments i conflictes d'interes.
+Contractes, subvencions, sous, pressupostos, lobbies, viatges, sentencies judicials, nomenaments del BOE, registre mercantil (BORME), estadistiques INE, dades financeres del Banc d'Espanya i pressupostos de l'Estat — 47 tools que creuen automaticament 45+ datasets per trobar anomalies, fraccionaments i conflictes d'interes.
 
 ## Que es un MCP?
 
@@ -27,6 +27,10 @@ Per exemple:
 | [CGPJ](https://www.poderjudicial.es) | Espanya | REST / PC-Axis |
 | [Open Data BCN](https://opendata-ajuntament.barcelona.cat) | Barcelona | CKAN |
 | [BOE](https://www.boe.es/datosabiertos/) | Espanya | REST (JSON/XML) |
+| [BORME](https://www.boe.es/datosabiertos/) | Espanya | REST (JSON/XML) |
+| [INE](https://servicios.ine.es/wstempus/js/) | Espanya | REST (JSON) |
+| [Banc d'Espanya](https://app.bde.es/bierest/) | Espanya | REST (JSON) |
+| [PGE](https://www.hacienda.gob.es) | Espanya | XML + CSV |
 
 No requereix autenticacio ni API keys. Totes les dades son publiques.
 
@@ -235,7 +239,7 @@ Quan presenta resultats d'investigacio, Claude:
 - **No acusa directament** — presenta els patrons i deixa que l'usuari tregui conclusions
 - Suggereix sempre **linies d'investigacio addicionals** per aprofundir
 
-## Tools disponibles (39)
+## Tools disponibles (47)
 
 ### Investigacio
 
@@ -333,6 +337,34 @@ Quan presenta resultats d'investigacio, Claude:
 | `boe_contractes` | Anuncis de contractacio del sector public publicats al BOE (seccio 5A). |
 | `boe_legislacio` | Legislacio consolidada d'Espanya. Normes vigents amb rang, ambit i estat de consolidacio. |
 | `boe_departaments` | Llista completa dels 211 departaments del BOE per filtrar consultes. |
+
+### BORME - Registre Mercantil (Espanya)
+
+| Tool | Descripcio |
+|---|---|
+| `borme_sumari` | Sumari diari del BORME per provincia. Actes inscrits: constitucions, nomenaments, cessaments, dissolucions. |
+
+### INE - Institut Nacional d'Estadistica (Espanya)
+
+| Tool | Descripcio |
+|---|---|
+| `ine_operacions` | Llista les 111 operacions estadistiques disponibles (IPC, EPA, PIB, etc.). |
+| `ine_taules` | Llista les taules d'una operacio per obtenir IDs de taula. |
+| `ine_dades_taula` | Obte dades reals d'una taula estadistica (valors dels ultims periodes). |
+| `ine_serie` | Obte una serie temporal concreta per codi de serie. |
+
+### Banc d'Espanya
+
+| Tool | Descripcio |
+|---|---|
+| `bde_serie` | Obte l'ultim valor de series financeres (Euribor, IPC, deute public, tipus BCE). |
+| `bde_series_destacades` | Mostra les series financeres mes importants amb els seus ultims valors. |
+
+### PGE - Pressupostos Generals de l'Estat
+
+| Tool | Descripcio |
+|---|---|
+| `pge_estructura` | Estructura dels PGE per any (2015-2025): seccions (ministeris), subsectors i programes. |
 
 ### Utilitats
 
@@ -456,6 +488,30 @@ Usa `boe_contractes` amb `data="20260314"`, `departament="Defensa"`.
 > Quina legislacio s'ha actualitzat recentment?
 
 Usa `boe_legislacio` per veure les normes mes recentment actualitzades.
+
+### Registre Mercantil (BORME)
+
+> Quines empreses s'han inscrit avui a Barcelona?
+
+Usa `borme_sumari` amb `data="20260314"`, `provincia="Barcelona"`.
+
+### Estadistiques INE
+
+> Quin es l'IPC actual?
+
+Usa `ine_taules` amb `operacio="IPC"`, despres `ine_dades_taula` amb l'ID de la taula.
+
+### Euribor i dades financeres
+
+> A quant esta l'Euribor?
+
+Usa `bde_serie` amb `series="D_1NBAF472"` o `bde_series_destacades` per veure totes les series clau.
+
+### Pressupostos de l'Estat
+
+> Quins ministeris tenen mes pressupost el 2024?
+
+Usa `pge_estructura` amb `any_=2024`.
 
 ## Datasets
 
@@ -591,6 +647,33 @@ Usa `boe_legislacio` per veure les normes mes recentment actualitzades.
 | `/datosabiertos/api/datos-auxiliares/departamentos` | Llista de departaments |
 | `/datosabiertos/api/datos-auxiliares/materias` | Llista de materies |
 | `/datosabiertos/api/datos-auxiliares/rangos` | Rangs normatius |
+
+### BORME (API REST)
+
+| Endpoint | Descripcio |
+|---|---|
+| `/datosabiertos/api/borme/sumario/{YYYYMMDD}` | Sumari diari del BORME per provincia (actes mercantils) |
+
+### INE (API REST)
+
+| Endpoint | Descripcio |
+|---|---|
+| `/wstempus/js/ES/OPERACIONES_DISPONIBLES` | Llista d'operacions estadistiques |
+| `/wstempus/js/ES/TABLAS_OPERACION/{codi}` | Taules d'una operacio |
+| `/wstempus/js/ES/DATOS_TABLA/{id}?nult=N` | Dades d'una taula |
+| `/wstempus/js/ES/DATOS_SERIE/{serie}?nult=N` | Serie temporal |
+
+### Banc d'Espanya (API REST)
+
+| Endpoint | Descripcio |
+|---|---|
+| `/bierest/resources/srdatosapp/favoritas?series={codis}` | Ultim valor de series financeres |
+
+### PGE (XML + CSV)
+
+| Endpoint | Descripcio |
+|---|---|
+| `pge_transparencia/infoportaltransppresupuesto-l{any}-p.xml` | Index XML dels pressupostos |
 
 ### CGPJ (API REST / PC-Axis)
 
