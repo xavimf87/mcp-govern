@@ -132,6 +132,22 @@ def _build_where(clauses: list[str]) -> str | None:
     return " AND ".join(parts) if parts else None
 
 
+def _fix_import_centims(records: list[dict], camp: str) -> list[dict]:
+    """Converteix imports que venen en cèntims a euros.
+
+    El dataset de contractes menors (`qjue-2pk9`) retorna els imports
+    en cèntims d'euro en lloc d'euros. Aquesta funció els divideix per 100.
+    """
+    for r in records:
+        try:
+            val = r.get(camp)
+            if val is not None:
+                r[camp] = str(round(float(val) / 100, 2))
+        except (ValueError, TypeError):
+            pass
+    return records
+
+
 # ---------------------------------------------------------------------------
 # Tool 0: Llistar camps d'un dataset
 # ---------------------------------------------------------------------------
@@ -858,6 +874,7 @@ async def cercar_contractes_menors(
         limit=limit,
         offset=offset,
     )
+    _fix_import_centims(records, "import_adjudicat_sense_iva")
     return _fmt(records, total, limit, offset)
 
 
@@ -1036,6 +1053,10 @@ async def investigar_entitat(
         else:
             results[key] = result
 
+    # Corregir imports de contractes menors (venen en cèntims)
+    if results.get("contractes_menors"):
+        _fix_import_centims(results["contractes_menors"], "import_adjudicat_sense_iva")
+
     # Construir informe
     sections = []
     sections.append(f"# INFORME D'INVESTIGACIÓ: {nom.upper()}\n")
@@ -1129,6 +1150,8 @@ async def detectar_fraccionament(
 
     if not records:
         return f"No s'han trobat contractes menors per '{empresa}'."
+
+    _fix_import_centims(records, "import_adjudicat_sense_iva")
 
     # Analitzar
     total = len(records)
