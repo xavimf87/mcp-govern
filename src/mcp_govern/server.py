@@ -1,4 +1,4 @@
-"""MCP server per consultar dades obertes del Govern de Catalunya."""
+"""MCP server per consultar dades obertes del Govern de Catalunya i d'Espanya."""
 
 from __future__ import annotations
 
@@ -8,7 +8,7 @@ from typing import Annotated
 from mcp.server.fastmcp import FastMCP
 from pydantic import Field
 
-from . import bdns, socrata
+from . import bdns, cgpj, datosgob, socrata
 from .datasets import DATASETS
 
 _INSTRUCTIONS = """\
@@ -19,6 +19,10 @@ FONTS DE DADES:
 - Socrata (Catalunya): contractes, subvencions RAISC, retribucions, pressupostos, \
 RLT, agenda lobbies, viatges, declaracions activitats.
 - BDNS (Espanya): subvencions amb noms reals de beneficiaris (persones físiques i jurídiques).
+- datos.gob.es (Espanya): catàleg nacional de dades obertes (113.000+ datasets) \
+amb informació de contractació, pressupostos, economia i sector públic.
+- CGPJ (Espanya): estadístiques judicials, repositori de processos per corrupció \
+i cercador de sentències del CENDOJ.
 
 ÚS DE LES TOOLS:
 - Sou d'un càrrec (president, conseller...): cercar_retribucions_alts_carrecs amb 'carrec'
@@ -28,6 +32,10 @@ RLT, agenda lobbies, viatges, declaracions activitats.
 - Subvencions amb noms reals: bdns_cercar_concessions
 - Estadístiques agregades: estadistiques (usa llistar_camps abans)
 - Investigació completa d'una entitat/persona: investigar_entitat
+- Datasets nacionals d'Espanya: datosgob_cercar_datasets + datosgob_detall_dataset
+- Dades de corrupció judicial: cgpj_dades_corrupcio
+- Sentències judicials: cgpj_cercar_sentencies
+- Estadístiques judicials: cgpj_estadistiques_judicials
 
 PATRONS DE CORRUPCIÓ — Quan l'usuari demani investigar o analitzar, aplica \
 proactivament aquestes estratègies:
@@ -1163,6 +1171,147 @@ async def detectar_fraccionament(
         lines.append(f"\n... i {total - 20} contractes més.")
 
     return "\n".join(lines)
+
+
+# ===========================================================================
+# datos.gob.es — Catàleg nacional de dades obertes
+# ===========================================================================
+
+
+@mcp.tool()
+async def datosgob_cercar_datasets(
+    query: Annotated[str | None, Field(description="Text lliure per cercar (ex: 'contratos públicos', 'presupuestos')")] = None,
+    theme: Annotated[str | None, Field(description="Temàtica: 'sector-publico', 'economia', 'hacienda', 'empleo', 'medio-ambiente', 'salud', 'educacion', 'transporte'")] = None,
+    publisher: Annotated[str | None, Field(description="Organisme publicador (ex: 'Ministerio de Hacienda')")] = None,
+    format_: Annotated[str | None, Field(description="Format dels recursos: 'json', 'csv', 'api', 'xml'")] = None,
+    page_size: Annotated[int, Field(description="Resultats per pàgina (per defecte 20)")] = 20,
+    page: Annotated[int, Field(description="Pàgina (0-indexed)")] = 0,
+) -> str:
+    """Cerca datasets al catàleg nacional de dades obertes datos.gob.es.
+
+    Permet trobar datasets publicats per administracions espanyoles sobre
+    contractació, pressupostos, economia, sector públic i molt més.
+    Hi ha 113.000+ datasets disponibles.
+    """
+    result = await datosgob.buscar_datasets(
+        query=query,
+        theme=theme,
+        publisher=publisher,
+        format_=format_,
+        page_size=page_size,
+        page=page,
+    )
+    items = result.get("result", {}).get("items", [])
+    if not items:
+        return "No s'han trobat datasets."
+
+    total_str = ""
+    total_results = result.get("result", {}).get("totalResults")
+    if total_results:
+        total_str = f"Total: {total_results} datasets trobats.\n\n"
+
+    records = []
+    for item in items:
+        title = item.get("title", "")
+        if isinstance(title, list):
+            title = title[0] if title else ""
+        elif isinstance(title, dict):
+            title = title.get("_value", title.get("es", str(title)))
+        desc = item.get("description", "")
+        if isinstance(desc, list):
+            desc = desc[0] if desc else ""
+        elif isinstance(desc, dict):
+            desc = desc.get("_value", desc.get("es", str(desc)))
+        records.append({
+            "titol": title,
+            "descripcio": str(desc)[:200],
+            "id": item.get("identifier", ""),
+            "publicador": item.get("publisher", ""),
+            "modificat": item.get("modified", ""),
+            "llicencia": item.get("license", ""),
+        })
+
+    return total_str + json.dumps(records, ensure_ascii=False, indent=2)
+
+
+@mcp.tool()
+async def datosgob_detall_dataset(
+    dataset_id: Annotated[str, Field(description="Identificador del dataset (obtingut via datosgob_cercar_datasets)")],
+) -> str:
+    """Obté el detall complet d'un dataset de datos.gob.es.
+
+    Inclou distribucions (fitxers descarregables, APIs), metadades,
+    freqüència d'actualització i recursos disponibles.
+    """
+    result = await datosgob.detall_dataset(dataset_id)
+    items = result.get("result", {}).get("items", [])
+    if not items:
+        return f"No s'ha trobat el dataset amb id '{dataset_id}'."
+    return json.dumps(items[0], ensure_ascii=False, indent=2)
+
+
+# ===========================================================================
+# CGPJ — Consejo General del Poder Judicial
+# ===========================================================================
+
+
+@mcp.tool()
+async def cgpj_dades_corrupcio() -> str:
+    """Obté dades del repositori de processos per corrupció del CGPJ.
+
+    El CGPJ publica un repositori específic amb informació sobre
+    macrocauses, procediments a l'Audiència Nacional i als tribunals
+    superiors de justícia relacionats amb corrupció política i econòmica.
+    """
+    result = await cgpj.obtenir_dades_corrupcio()
+    return json.dumps(result, ensure_ascii=False, indent=2)
+
+
+@mcp.tool()
+async def cgpj_cercar_sentencies(
+    text: Annotated[str | None, Field(description="Text lliure per cercar a les resolucions (ex: 'malversación', 'cohecho', 'prevaricación')")] = None,
+    organ: Annotated[str | None, Field(description="Tipus d'òrgan: 'TS' (Tribunal Suprem), 'AN' (Audiència Nacional), 'AP' (Audiència Provincial)")] = None,
+    tipus: Annotated[str | None, Field(description="Tipus de resolució: 'SENTENCIA', 'AUTO'")] = None,
+    data_desde: Annotated[str | None, Field(description="Data inici DD/MM/YYYY")] = None,
+    data_fins: Annotated[str | None, Field(description="Data fi DD/MM/YYYY")] = None,
+    page: Annotated[int, Field(description="Pàgina de resultats")] = 1,
+    page_size: Annotated[int, Field(description="Resultats per pàgina")] = 20,
+) -> str:
+    """Cerca sentències al CENDOJ (Centre de Documentació Judicial).
+
+    Permet cercar resolucions judicials per text, òrgan judicial, tipus
+    i dates. Molt útil per trobar sentències de corrupció, malversació,
+    prevaricació, suborn i altres delictes contra l'administració pública.
+    """
+    result = await cgpj.cercar_sentencies(
+        text=text,
+        organ=organ,
+        tipus=tipus,
+        data_desde=data_desde,
+        data_fins=data_fins,
+        page=page,
+        page_size=page_size,
+    )
+    return json.dumps(result, ensure_ascii=False, indent=2)
+
+
+@mcp.tool()
+async def cgpj_estadistiques_judicials(
+    tema: Annotated[str | None, Field(description="Tema: 'penal', 'civil', 'contencioso', 'social', 'menores'")] = None,
+    territori: Annotated[str | None, Field(description="Àmbit territorial (ex: 'nacional', 'Madrid', 'Barcelona', 'Cataluña')")] = None,
+    any_: Annotated[str | None, Field(description="Any de les estadístiques (ex: '2024')")] = None,
+) -> str:
+    """Consulta estadístiques judicials del CGPJ.
+
+    Dades agregades sobre activitat judicial per tema, territori i any.
+    Inclou volum de procediments, durada, taxes de resolució, etc.
+    """
+    result = await cgpj.buscar_estadistiques_judicials(
+        tema=tema,
+        territori=territori,
+        any_=any_,
+    )
+    return json.dumps(result, ensure_ascii=False, indent=2)
 
 
 def main():
