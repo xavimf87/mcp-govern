@@ -584,6 +584,98 @@ DATASETS = {
             "curs",
         ],
     },
+    # =======================================================================
+    # FISCALITAT
+    # =======================================================================
+    "impost_successions_composicio": {
+        "id": "2jqq-fyu8",
+        "nom": "Impost sobre successions per composició de l'herència",
+        "camps": [],
+    },
+    "impost_successions_quota": {
+        "id": "xaxt-fghh",
+        "nom": "Impost sobre successions - càlcul de la quota final",
+        "camps": [],
+    },
+    # =======================================================================
+    # RETRIBUCIONS - CÀRRECS LOCALS
+    # =======================================================================
+    "retrib_carrecs_locals": {
+        "id": "bepu-nr6b",
+        "nom": "Indicadors retributius dels càrrecs electes locals",
+        "camps": [],
+    },
+    # =======================================================================
+    # PARTICIPACIÓ I OPINIÓ
+    # =======================================================================
+    "enquestes_opinio": {
+        "id": "gp4k-sxxn",
+        "nom": "Microdades d'estudis d'opinió",
+        "camps": [],
+    },
+    "participacio_ciutadana": {
+        "id": "62wr-uxxx",
+        "nom": "Panel de participació ciutadana en polítiques públiques locals",
+        "camps": [],
+    },
+    # =======================================================================
+    # PERSONAL - ACORDS I CONVENIS
+    # =======================================================================
+    "acords_personal": {
+        "id": "j98z-54w6",
+        "nom": "Acords i pactes de condicions de treball del personal",
+        "camps": [],
+    },
+    # =======================================================================
+    # CONTRACTACIÓ LOCAL
+    # =======================================================================
+    "relic": {
+        "id": "t3wj-j4pu",
+        "nom": "Registre públic de contractes d'ens locals (RELIC)",
+        "camps": [],
+    },
+    # =======================================================================
+    # SERVEIS SOCIALS
+    # =======================================================================
+    "serveis_residencials_violencia": {
+        "id": "vqd5-kgke",
+        "nom": "Serveis residencials per a dones en situació de violència",
+        "camps": [],
+    },
+    # =======================================================================
+    # EDUCACIÓ
+    # =======================================================================
+    "centres_fp": {
+        "id": "iyus-443e",
+        "nom": "Centres de formació professional integrada de Catalunya",
+        "camps": [],
+    },
+    # =======================================================================
+    # INFRAESTRUCTURES I MEDI AMBIENT
+    # =======================================================================
+    "ports": {
+        "id": "frcw-v3xi",
+        "nom": "Ports de Catalunya - infraestructures portuàries",
+        "camps": [],
+    },
+    "depuradores": {
+        "id": "k288-dig3",
+        "nom": "Sistemes públics de sanejament i depuradores d'aigües residuals",
+        "camps": [],
+    },
+    "economia_circular": {
+        "id": "5jbn-usiv",
+        "nom": "Iniciatives Catalunya Circular",
+        "camps": [],
+    },
+    # =======================================================================
+    # AGRICULTURA
+    # =======================================================================
+    "explotacions_agraries": {
+        "id": "uwe8-jqcu",
+        "nom": "Parcel·les i cultius de les explotacions agràries (DUN)",
+        "camps": [],
+    },
 }
 
 
