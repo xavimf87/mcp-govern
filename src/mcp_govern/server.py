@@ -132,6 +132,28 @@ def _build_where(clauses: list[str]) -> str | None:
     return " AND ".join(parts) if parts else None
 
 
+def _normalize_accents(text: str) -> str:
+    """Genera una condició LIKE que cobreix variants amb/sense accents catalans.
+
+    Substitueix vocals accentuades per wildcard '%' perquè Socrata upper()
+    no normalitza accents (upper('è') = 'È' ≠ 'E').
+    """
+    replacements = {
+        "a": "[aàá]", "e": "[eèé]", "i": "[iíï]", "o": "[oòó]", "u": "[uúü]",
+        "A": "[AÀÁ]", "E": "[EÈÉ]", "I": "[IÍÏ]", "O": "[OÒÓ]", "U": "[UÚÜ]",
+    }
+    # Socrata no suporta character classes, usar % com a wildcard
+    result = ""
+    for ch in text:
+        if ch in "aàáeèéiíïoòóuúü":
+            result += "%"
+        elif ch in "AÀÁEÈÉIÍÏOÒÓUÚÜ":
+            result += "%"
+        else:
+            result += ch
+    return result
+
+
 def _fix_import_centims(records: list[dict], camp: str) -> list[dict]:
     """Converteix imports que venen en cèntims a euros.
 
@@ -967,8 +989,12 @@ async def investigar_entitat(
 ) -> str:
     """Investiga una entitat o persona creuant TOTES les fonts de dades disponibles.
 
-    Cerca simultàniament a: contractes, contractes menors, PSCP, subvencions,
+    Cerca simultàniament a: contractes (com a adjudicatari i com a organisme),
+    contractes menors, PSCP (adjudicatari i organisme), subvencions,
     retribucions de directius subvencionats, agenda de lobbies i BDNS.
+
+    Quan s'investiga un ajuntament o organisme públic, també cerca
+    els contractes que ha adjudicat (no només els que ha rebut).
 
     Retorna un informe complet amb totes les aparicions trobades.
     Ideal per investigar empreses, persones o organismes sospitosos.
@@ -977,67 +1003,91 @@ async def investigar_entitat(
 
     results: dict[str, list[dict]] = {}
 
+    # Normalitzar accents per a les cerques LIKE
+    nom_like = _normalize_accents(nom)
+
     # Llançar totes les consultes en paral·lel
     queries = {
         "contractes_registre": socrata.query(
             "contractes",
-            where=f"upper(adjudicatari) like upper('%{nom}%')",
+            where=f"upper(adjudicatari) like upper('%{nom_like}%')",
+            order="data_adjudicacio DESC",
+            limit=limit_per_font,
+        ),
+        "contractes_com_a_organisme": socrata.query(
+            "contractes",
+            where=f"upper(organisme_contractant) like upper('%{nom_like}%')",
             order="data_adjudicacio DESC",
             limit=limit_per_font,
         ),
         "contractes_menors": socrata.query(
             "contractes_menors",
-            where=f"upper(empresa_adjudicat_ria) like upper('%{nom}%')",
+            where=f"upper(empresa_adjudicat_ria) like upper('%{nom_like}%')",
+            order="import_adjudicat_sense_iva DESC",
+            limit=limit_per_font,
+        ),
+        "contractes_menors_com_a_organisme": socrata.query(
+            "contractes_menors",
+            where=(
+                f"(upper(departament_d_adscripci) like upper('%{nom_like}%') OR "
+                f"upper(rgan_de_contractaci) like upper('%{nom_like}%'))"
+            ),
             order="import_adjudicat_sense_iva DESC",
             limit=limit_per_font,
         ),
         "pscp": socrata.query(
             "pscp",
-            where=f"upper(denominacio_adjudicatari) like upper('%{nom}%')",
+            where=f"upper(denominacio_adjudicatari) like upper('%{nom_like}%')",
+            order="data_publicacio_contracte DESC",
+            limit=limit_per_font,
+        ),
+        "pscp_com_a_organisme": socrata.query(
+            "pscp",
+            where=f"upper(nom_organ) like upper('%{nom_like}%')",
             order="data_publicacio_contracte DESC",
             limit=limit_per_font,
         ),
         "subvencions_raisc": socrata.query(
             "subvencions",
-            where=f"upper(ra_social_del_beneficiari) like upper('%{nom}%')",
+            where=f"upper(ra_social_del_beneficiari) like upper('%{nom_like}%')",
             order="data_concessi DESC",
             limit=limit_per_font,
         ),
         "retrib_directius_subvencionats": socrata.query(
             "retrib_directius_subvencionats",
-            where=f"upper(empresa) like upper('%{nom}%')",
+            where=f"upper(empresa) like upper('%{nom_like}%')",
             order="retribucions_anuals DESC",
             limit=limit_per_font,
         ),
         "agenda_lobbies": socrata.query(
             "agenda_lobbies",
-            where=f"upper(nom_registre_grup_inter_s) like upper('%{nom}%')",
+            where=f"upper(nom_registre_grup_inter_s) like upper('%{nom_like}%')",
             order="data DESC",
             limit=limit_per_font,
         ),
         "alts_carrecs": socrata.query(
             "retrib_alts_carrecs",
-            where=f"upper(cognoms_nom) like upper('%{nom}%')",
+            where=f"upper(cognoms_nom) like upper('%{nom_like}%')",
             order="retribucio_anual_prevista DESC",
             limit=limit_per_font,
         ),
         "directius_sector_public": socrata.query(
             "retrib_directius_sector_public",
-            where=f"upper(cognoms_i_nom) like upper('%{nom}%')",
+            where=f"upper(cognoms_i_nom) like upper('%{nom_like}%')",
             order="retribuci_fixa_anual_prevista DESC",
             limit=limit_per_font,
         ),
         "declaracions_activitats": socrata.query(
             "declaracions_activitats",
             where=(
-                f"(upper(nom) like upper('%{nom}%') OR "
-                f"upper(primer_cognom) like upper('%{nom}%'))"
+                f"(upper(nom) like upper('%{nom_like}%') OR "
+                f"upper(primer_cognom) like upper('%{nom_like}%'))"
             ),
             limit=limit_per_font,
         ),
         "viatges": socrata.query(
             "viatges_alts_carrecs",
-            where=f"upper(nom_i_cognoms) like upper('%{nom}%')",
+            where=f"upper(nom_i_cognoms) like upper('%{nom_like}%')",
             order="inici_viatge DESC",
             limit=limit_per_font,
         ),
@@ -1056,6 +1106,8 @@ async def investigar_entitat(
     # Corregir imports de contractes menors (venen en cèntims)
     if results.get("contractes_menors"):
         _fix_import_centims(results["contractes_menors"], "import_adjudicat_sense_iva")
+    if results.get("contractes_menors_com_a_organisme"):
+        _fix_import_centims(results["contractes_menors_com_a_organisme"], "import_adjudicat_sense_iva")
 
     # Construir informe
     sections = []
