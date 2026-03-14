@@ -8,7 +8,7 @@ from typing import Annotated
 from mcp.server.fastmcp import FastMCP
 from pydantic import Field
 
-from . import bdns, cgpj, datosgob, socrata
+from . import barcelona, bdns, cgpj, datosgob, socrata
 from .datasets import DATASETS
 
 _INSTRUCTIONS = """\
@@ -23,6 +23,8 @@ RLT, agenda lobbies, viatges, declaracions activitats.
 amb informació de contractació, pressupostos, economia i sector públic.
 - CGPJ (Espanya): estadístiques judicials, repositori de processos per corrupció \
 i cercador de sentències del CENDOJ.
+- Open Data BCN (Barcelona): 553 datasets municipals — pressupostos, contractes, \
+seguretat (incidents GUB), transport, medi ambient, habitatge i economia.
 
 ÚS DE LES TOOLS:
 - Sou d'un càrrec (president, conseller...): cercar_retribucions_alts_carrecs amb 'carrec'
@@ -36,6 +38,7 @@ i cercador de sentències del CENDOJ.
 - Dades de corrupció judicial: cgpj_dades_corrupcio
 - Sentències judicials: cgpj_cercar_sentencies
 - Estadístiques judicials: cgpj_estadistiques_judicials
+- Dades de Barcelona: bcn_cercar_datasets, bcn_detall_dataset, bcn_obtenir_dades
 
 PATRONS DE CORRUPCIÓ — Quan l'usuari demani investigar o analitzar, aplica \
 proactivament aquestes estratègies:
@@ -1312,6 +1315,117 @@ async def cgpj_estadistiques_judicials(
         any_=any_,
     )
     return json.dumps(result, ensure_ascii=False, indent=2)
+
+
+# ===========================================================================
+# Open Data BCN — Ajuntament de Barcelona (API CKAN)
+# ===========================================================================
+
+
+@mcp.tool()
+async def bcn_cercar_datasets(
+    query: Annotated[str | None, Field(description="Text lliure per cercar (ex: 'pressupost', 'seguretat', 'habitatge')")] = None,
+    rows: Annotated[int, Field(description="Nombre de resultats (per defecte 20)")] = 20,
+    start: Annotated[int, Field(description="Offset per paginació")] = 0,
+) -> str:
+    """Cerca datasets a l'Open Data de l'Ajuntament de Barcelona.
+
+    553 datasets municipals sobre: pressupostos, contractes, seguretat
+    (incidents Guàrdia Urbana), transport (bicing, bus, taxi), medi ambient
+    (qualitat aire, espais verds), habitatge, urbanisme i economia.
+    """
+    result = await barcelona.cercar_datasets(query=query, rows=rows, start=start)
+    if not result.get("success"):
+        return "Error en la consulta a Open Data BCN."
+
+    results = result.get("result", {})
+    count = results.get("count", 0)
+    datasets = results.get("results", [])
+
+    if not datasets:
+        return "No s'han trobat datasets a Barcelona."
+
+    records = []
+    for ds in datasets:
+        records.append({
+            "nom": ds.get("title", ""),
+            "id": ds.get("name", ""),
+            "descripcio": (ds.get("notes_translated", {}).get("ca", "") or ds.get("notes", ""))[:200],
+            "num_recursos": ds.get("num_resources", 0),
+            "etiquetes": [t.get("name", "") for t in ds.get("tags", [])],
+        })
+
+    header = f"Total: {count} datasets trobats.\n\n"
+    return header + json.dumps(records, ensure_ascii=False, indent=2)
+
+
+@mcp.tool()
+async def bcn_detall_dataset(
+    dataset_name: Annotated[str, Field(description=(
+        "Nom del dataset. Exemples: 'pressupost-despeses', 'pressupost-ingressos', "
+        "'contractes-menors', 'incidents-gestionats-gub', 'qualitat-aire-detall-bcn', "
+        "'habitatges-us-turistic', 'bicing', 'obres', 'renda-disponible-llars-bcn'"
+    ))],
+) -> str:
+    """Obté el detall complet d'un dataset de Barcelona, incloent els seus recursos.
+
+    Retorna metadades i la llista de recursos (fitxers CSV, JSON, etc.)
+    amb els seus resource_id per poder consultar-los amb bcn_obtenir_dades.
+    """
+    result = await barcelona.detall_dataset(dataset_name)
+    if not result.get("success"):
+        return f"No s'ha trobat el dataset '{dataset_name}'."
+
+    ds = result.get("result", {})
+    resources = []
+    for r in ds.get("resources", []):
+        resources.append({
+            "id": r.get("id", ""),
+            "nom": r.get("name", ""),
+            "format": r.get("format", ""),
+            "url": r.get("url", ""),
+        })
+
+    info = {
+        "nom": ds.get("title", ""),
+        "descripcio": ds.get("notes_translated", {}).get("ca", "") or ds.get("notes", ""),
+        "llicencia": ds.get("license_title", ""),
+        "recursos": resources,
+    }
+    return json.dumps(info, ensure_ascii=False, indent=2)
+
+
+@mcp.tool()
+async def bcn_obtenir_dades(
+    resource_id: Annotated[str, Field(description="ID del recurs (obtingut via bcn_detall_dataset)")],
+    query: Annotated[str | None, Field(description="Text lliure per filtrar les dades")] = None,
+    limit: Annotated[int, Field(description="Nombre de resultats (per defecte 20)")] = 20,
+    offset: Annotated[int, Field(description="Offset per paginació")] = 0,
+) -> str:
+    """Obté dades d'un recurs concret de Barcelona via l'API datastore.
+
+    Primer usa bcn_detall_dataset per obtenir els resource_id disponibles,
+    després aquesta tool per consultar les dades reals.
+    """
+    result = await barcelona.obtenir_dades(
+        resource_id, query=query, limit=limit, offset=offset,
+    )
+    if not result.get("success"):
+        return "Error obtenint dades del recurs."
+
+    data = result.get("result", {})
+    records = data.get("records", [])
+    total = data.get("total", 0)
+
+    if not records:
+        return "No s'han trobat registres."
+
+    header = ""
+    if total:
+        shown = len(records)
+        header = f"Mostrant {offset + 1}-{offset + shown} de {total} registres.\n\n"
+
+    return header + json.dumps(records, ensure_ascii=False, indent=2)
 
 
 def main():
