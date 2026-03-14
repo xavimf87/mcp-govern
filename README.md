@@ -2,7 +2,7 @@
 
 Servidor MCP (Model Context Protocol) expert en **transparencia publica** i **deteccio de patrons de corrupcio** a partir de dades obertes del **Govern de Catalunya**, l'**Ajuntament de Barcelona** i fonts de dades de tota **Espanya**.
 
-Contractes, subvencions, sous, pressupostos, lobbies, viatges, sentencies judicials — 34 tools que creuen automaticament 45+ datasets per trobar anomalies, fraccionaments i conflictes d'interes.
+Contractes, subvencions, sous, pressupostos, lobbies, viatges, sentencies judicials, nomenaments del BOE — 39 tools que creuen automaticament 45+ datasets per trobar anomalies, fraccionaments i conflictes d'interes.
 
 ## Que es un MCP?
 
@@ -26,6 +26,7 @@ Per exemple:
 | [datos.gob.es](https://datos.gob.es) | Espanya | CKAN |
 | [CGPJ](https://www.poderjudicial.es) | Espanya | REST / PC-Axis |
 | [Open Data BCN](https://opendata-ajuntament.barcelona.cat) | Barcelona | CKAN |
+| [BOE](https://www.boe.es/datosabiertos/) | Espanya | REST (JSON/XML) |
 
 No requereix autenticacio ni API keys. Totes les dades son publiques.
 
@@ -234,7 +235,7 @@ Quan presenta resultats d'investigacio, Claude:
 - **No acusa directament** — presenta els patrons i deixa que l'usuari tregui conclusions
 - Suggereix sempre **linies d'investigacio addicionals** per aprofundir
 
-## Tools disponibles (34)
+## Tools disponibles (39)
 
 ### Investigacio
 
@@ -322,6 +323,16 @@ Quan presenta resultats d'investigacio, Claude:
 | `bcn_cercar_datasets` | Cerca entre 553 datasets municipals de Barcelona: pressupostos, contractes, seguretat, transport, medi ambient, habitatge. |
 | `bcn_detall_dataset` | Detall d'un dataset de Barcelona amb la llista de recursos i els seus resource_id. |
 | `bcn_obtenir_dades` | Obte dades d'un recurs concret de Barcelona via l'API datastore. |
+
+### BOE - Butlleti Oficial de l'Estat (Espanya)
+
+| Tool | Descripcio |
+|---|---|
+| `boe_sumari` | Sumari diari del BOE. Filtra per data, seccio i departament. Inclou totes les publicacions oficials. |
+| `boe_nomenaments` | Nomenaments, cessaments i situacions de personal (seccio 2A). Clau per detectar portes giratories. |
+| `boe_contractes` | Anuncis de contractacio del sector public publicats al BOE (seccio 5A). |
+| `boe_legislacio` | Legislacio consolidada d'Espanya. Normes vigents amb rang, ambit i estat de consolidacio. |
+| `boe_departaments` | Llista completa dels 211 departaments del BOE per filtrar consultes. |
 
 ### Utilitats
 
@@ -421,6 +432,30 @@ Usa `bcn_detall_dataset` amb `dataset_name="pressupost-despeses"` per obtenir el
 > Quins datasets de contractacio publica hi ha a datos.gob.es?
 
 Usa `datosgob_cercar_datasets` amb `query="contratos públicos"`.
+
+### Nomenaments al BOE
+
+> Quins nomenaments s'han publicat avui al BOE?
+
+Usa `boe_nomenaments` amb `data="20260314"`.
+
+### Portes giratories via BOE
+
+> Quins alts carrecs han estat cessats recentment al BOE? Les seves empreses reben contractes?
+
+Usa `boe_nomenaments` per trobar cessaments, despres creua amb `cercar_contractes` o `investigar_entitat`.
+
+### Contractes publicats al BOE
+
+> Quins contractes s'han publicat avui al BOE del Ministeri de Defensa?
+
+Usa `boe_contractes` amb `data="20260314"`, `departament="Defensa"`.
+
+### Legislacio vigent
+
+> Quina legislacio s'ha actualitzat recentment?
+
+Usa `boe_legislacio` per veure les normes mes recentment actualitzades.
 
 ## Datasets
 
@@ -546,6 +581,16 @@ Usa `datosgob_cercar_datasets` amb `query="contratos públicos"`.
 |---|---|
 | `/apidata/catalog/dataset.json` | Cataleg de 113.000+ datasets nacionals |
 | `/apidata/catalog/distribution.json` | Distribucions (fitxers i APIs) dels datasets |
+
+### BOE (API REST)
+
+| Endpoint | Descripcio |
+|---|---|
+| `/datosabiertos/api/boe/sumario/{YYYYMMDD}` | Sumari diari del BOE (nomenaments, contractes, disposicions) |
+| `/datosabiertos/api/legislacion-consolidada` | Legislacio consolidada d'Espanya |
+| `/datosabiertos/api/datos-auxiliares/departamentos` | Llista de departaments |
+| `/datosabiertos/api/datos-auxiliares/materias` | Llista de materies |
+| `/datosabiertos/api/datos-auxiliares/rangos` | Rangs normatius |
 
 ### CGPJ (API REST / PC-Axis)
 

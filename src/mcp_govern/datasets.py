@@ -676,6 +676,25 @@ DATASETS = {
         "nom": "Parcel·les i cultius de les explotacions agràries (DUN)",
         "camps": [],
     },
+    # =======================================================================
+    # NORMATIVA (DOGC)
+    # =======================================================================
+    "normativa_dogc": {
+        "id": "n6hn-rmy7",
+        "nom": "Normativa del DOGC i del Portal Jurídic de Catalunya",
+        "camps": [
+            "any",
+            "n_mero_de_control",
+            "rang_de_norma",
+            "t_tol_de_la_norma",
+            "t_tol_de_la_norma_es",
+            "data_del_document",
+            "diari_oficial",
+            "n_mero_de_diari",
+            "data_de_publicaci_del_diari",
+            "vig_ncia_de_la_norma",
+        ],
+    },
 }
 
 

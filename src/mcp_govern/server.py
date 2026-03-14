@@ -8,7 +8,7 @@ from typing import Annotated
 from mcp.server.fastmcp import FastMCP
 from pydantic import Field
 
-from . import barcelona, bdns, cgpj, datosgob, socrata
+from . import barcelona, bdns, boe, cgpj, datosgob, socrata
 from .datasets import DATASETS
 
 _INSTRUCTIONS = """\
@@ -25,6 +25,8 @@ amb informació de contractació, pressupostos, economia i sector públic.
 i cercador de sentències del CENDOJ.
 - Open Data BCN (Barcelona): 553 datasets municipals — pressupostos, contractes, \
 seguretat (incidents GUB), transport, medi ambient, habitatge i economia.
+- BOE (Espanya): Butlletí Oficial de l'Estat — nomenaments, cessaments, disposicions, \
+contractes publicats i legislació consolidada.
 
 ÚS DE LES TOOLS:
 - Sou d'un càrrec (president, conseller...): cercar_retribucions_alts_carrecs amb 'carrec'
@@ -39,6 +41,9 @@ seguretat (incidents GUB), transport, medi ambient, habitatge i economia.
 - Sentències judicials: cgpj_cercar_sentencies
 - Estadístiques judicials: cgpj_estadistiques_judicials
 - Dades de Barcelona: bcn_cercar_datasets, bcn_detall_dataset, bcn_obtenir_dades
+- Nomenaments i cessaments oficials: boe_sumari (secció 2A)
+- Contractes publicats al BOE: boe_sumari (secció 5A)
+- Legislació consolidada: boe_legislacio
 
 PATRONS DE CORRUPCIÓ — Quan l'usuari demani investigar o analitzar, aplica \
 proactivament aquestes estratègies:
@@ -1426,6 +1431,238 @@ async def bcn_obtenir_dades(
         header = f"Mostrant {offset + 1}-{offset + shown} de {total} registres.\n\n"
 
     return header + json.dumps(records, ensure_ascii=False, indent=2)
+
+
+# ===========================================================================
+# BOE — Boletín Oficial del Estado
+# ===========================================================================
+
+
+def _normalitza_items(items) -> list:
+    """Normalitza items del BOE que poden ser dict o list."""
+    if isinstance(items, dict):
+        return [items]
+    if isinstance(items, list):
+        return items
+    return []
+
+
+def _extreure_items_seccio(sumari: dict, codi_seccio: str) -> list[dict]:
+    """Extreu tots els items d'una secció del sumari del BOE."""
+    resultats = []
+    for diario in _normalitza_items(sumari.get("data", {}).get("sumario", {}).get("diario", [])):
+        for seccion in _normalitza_items(diario.get("seccion", [])):
+            if seccion.get("codigo") != codi_seccio:
+                continue
+            for dept in _normalitza_items(seccion.get("departamento", [])):
+                dept_nom = dept.get("nombre", "")
+                epigrafe_raw = dept.get("epigrafe", dept.get("texto", []))
+                for ep in _normalitza_items(epigrafe_raw):
+                    ep_nom = ep.get("nombre", "")
+                    for item in _normalitza_items(ep.get("item", [])):
+                        url_pdf = item.get("url_pdf", {})
+                        if isinstance(url_pdf, dict):
+                            url_pdf = url_pdf.get("texto", "")
+                        resultats.append({
+                            "departament": dept_nom,
+                            "epigrafe": ep_nom,
+                            "identificador": item.get("identificador", ""),
+                            "titol": item.get("titulo", ""),
+                            "url_html": item.get("url_html", ""),
+                            "url_pdf": url_pdf,
+                        })
+    return resultats
+
+
+@mcp.tool()
+async def boe_sumari(
+    data: Annotated[str, Field(description=(
+        "Data del sumari en format YYYYMMDD (ex: '20260314'). "
+        "Si no se sap la data exacta, provar amb dies laborables recents."
+    ))],
+    seccio: Annotated[str | None, Field(description=(
+        "Filtrar per secció. Codis: "
+        "'1' = Disposicions generals, "
+        "'2A' = Nomenaments i cessaments, "
+        "'2B' = Oposicions i concursos, "
+        "'3' = Altres disposicions, "
+        "'4' = Administració de Justícia, "
+        "'5A' = Contractació del Sector Públic, "
+        "'5B' = Altres anuncis oficials, "
+        "'5C' = Anuncis particulars. "
+        "Si no s'especifica, retorna totes les seccions."
+    ))] = None,
+    departament: Annotated[str | None, Field(description=(
+        "Filtrar per departament (text parcial, case-insensitive). "
+        "Ex: 'Defensa', 'Hacienda', 'Interior'"
+    ))] = None,
+) -> str:
+    """Consulta el sumari diari del BOE (Boletín Oficial del Estado).
+
+    Retorna els documents publicats al BOE per una data concreta.
+    Molt útil per trobar nomenaments i cessaments (secció 2A),
+    contractes públics (secció 5A), i disposicions generals (secció 1).
+
+    Per detectar PORTES GIRATÒRIES: cerca nomenaments/cessaments a la
+    secció 2A i creua amb cercar_contractes o cercar_subvencions.
+    """
+    try:
+        result = await boe.obtenir_sumari(data)
+    except Exception:
+        return f"Error consultant el BOE per la data {data}. Comprova que la data sigui vàlida (format YYYYMMDD) i correspongui a un dia amb publicació."
+
+    if result.get("status", {}).get("code") != "200":
+        return f"Error consultant el BOE per la data {data}."
+
+    if seccio:
+        items = _extreure_items_seccio(result, seccio)
+    else:
+        items = []
+        for codi in ["1", "2A", "2B", "3", "4", "5A", "5B", "5C"]:
+            items.extend(_extreure_items_seccio(result, codi))
+
+    if departament:
+        dept_lower = departament.lower()
+        items = [i for i in items if dept_lower in i.get("departament", "").lower()]
+
+    if not items:
+        filtres = f"data={data}"
+        if seccio:
+            filtres += f", seccio={seccio}"
+        if departament:
+            filtres += f", departament={departament}"
+        return f"No s'han trobat resultats al BOE ({filtres})."
+
+    total = len(items)
+    shown = items[:50]
+    header = f"Total: {total} documents trobats al BOE del {data}.\n\n"
+    return header + json.dumps(shown, ensure_ascii=False, indent=2)
+
+
+@mcp.tool()
+async def boe_nomenaments(
+    data: Annotated[str, Field(description="Data en format YYYYMMDD (ex: '20260314')")],
+    departament: Annotated[str | None, Field(description=(
+        "Filtrar per departament (text parcial). Ex: 'Defensa', 'Interior'"
+    ))] = None,
+) -> str:
+    """Cerca nomenaments, cessaments i situacions de personal al BOE.
+
+    Extreu específicament la secció 2A del BOE (Nombramientos, situaciones
+    e incidencias). Útil per detectar portes giratòries creuant amb
+    contractes i subvencions.
+    """
+    try:
+        result = await boe.obtenir_sumari(data)
+    except Exception:
+        return f"Error consultant el BOE per la data {data}. Comprova que la data sigui vàlida."
+
+    if result.get("status", {}).get("code") != "200":
+        return f"Error consultant el BOE per la data {data}."
+
+    items = _extreure_items_seccio(result, "2A")
+
+    if departament:
+        dept_lower = departament.lower()
+        items = [i for i in items if dept_lower in i.get("departament", "").lower()]
+
+    if not items:
+        return f"No s'han trobat nomenaments al BOE del {data}."
+
+    total = len(items)
+    header = f"Total: {total} nomenaments/cessaments al BOE del {data}.\n\n"
+    return header + json.dumps(items[:50], ensure_ascii=False, indent=2)
+
+
+@mcp.tool()
+async def boe_contractes(
+    data: Annotated[str, Field(description="Data en format YYYYMMDD (ex: '20260314')")],
+    departament: Annotated[str | None, Field(description=(
+        "Filtrar per departament (text parcial). Ex: 'Defensa', 'Sanidad'"
+    ))] = None,
+) -> str:
+    """Cerca anuncis de contractació del sector públic publicats al BOE.
+
+    Extreu la secció 5A del BOE (Contratación del Sector Público).
+    Inclou licitacions i adjudicacions publicades oficialment.
+    """
+    try:
+        result = await boe.obtenir_sumari(data)
+    except Exception:
+        return f"Error consultant el BOE per la data {data}. Comprova que la data sigui vàlida."
+
+    if result.get("status", {}).get("code") != "200":
+        return f"Error consultant el BOE per la data {data}."
+
+    items = _extreure_items_seccio(result, "5A")
+
+    if departament:
+        dept_lower = departament.lower()
+        items = [i for i in items if dept_lower in i.get("departament", "").lower()]
+
+    if not items:
+        return f"No s'han trobat contractes al BOE del {data}."
+
+    total = len(items)
+    header = f"Total: {total} anuncis de contractació al BOE del {data}.\n\n"
+    return header + json.dumps(items[:50], ensure_ascii=False, indent=2)
+
+
+@mcp.tool()
+async def boe_legislacio(
+    limit: Annotated[int, Field(description="Nombre de resultats (per defecte 20)")] = 20,
+    offset: Annotated[int, Field(description="Offset per paginació")] = 0,
+) -> str:
+    """Consulta legislació consolidada d'Espanya via el BOE.
+
+    Retorna les normes més recentment actualitzades amb informació
+    sobre àmbit (estatal, autonòmic), rang (llei, decret, ordre),
+    departament i estat de consolidació.
+    """
+    result = await boe.cercar_legislacio(limit=limit, offset=offset)
+
+    if result.get("status", {}).get("code") != "200":
+        return "Error consultant la legislació consolidada del BOE."
+
+    data = result.get("data", [])
+    if not data:
+        return "No s'han trobat resultats de legislació."
+
+    records = []
+    for item in data:
+        records.append({
+            "identificador": item.get("identificador", ""),
+            "titol": item.get("titulo", ""),
+            "rang": item.get("rango", {}).get("texto", ""),
+            "departament": item.get("departamento", {}).get("texto", ""),
+            "ambit": item.get("ambito", {}).get("texto", ""),
+            "data_disposicio": item.get("fecha_disposicion", ""),
+            "data_publicacio": item.get("fecha_publicacion", ""),
+            "vigencia_agotada": item.get("vigencia_agotada", ""),
+            "estat_consolidacio": item.get("estado_consolidacion", {}).get("texto", ""),
+            "url": item.get("url_html_consolidada", ""),
+        })
+
+    total = len(records)
+    header = f"Mostrant {total} normes de legislació consolidada.\n\n"
+    return header + json.dumps(records, ensure_ascii=False, indent=2)
+
+
+@mcp.tool()
+async def boe_departaments() -> str:
+    """Llista tots els departaments disponibles al BOE.
+
+    Útil per saber quins codis i noms de departament es poden usar
+    per filtrar en altres consultes al BOE.
+    """
+    result = await boe.obtenir_departaments()
+
+    if result.get("status", {}).get("code") != "200":
+        return "Error obtenint els departaments del BOE."
+
+    data = result.get("data", {})
+    records = [{"codi": k, "nom": v} for k, v in sorted(data.items(), key=lambda x: x[1])]
+    return json.dumps(records, ensure_ascii=False, indent=2)
 
 
 def main():
