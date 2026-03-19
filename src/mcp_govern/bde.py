@@ -10,12 +10,11 @@ REQUEST_TIMEOUT = 30.0
 # Sèries destacades
 SERIES_DESTACADES = {
     "euribor_1any": "D_1NBAF472",
-    "euribor_3mesos": "D_1NBAF474",
-    "euribor_6mesos": "D_1NBAF473",
-    "euribor_12mesos": "D_1NBAF472",
-    "ipc_general": "D_1AEA8S1",
-    "deute_public_espanya": "D_1BE9994",
-    "tipus_interes_bce": "D_1NBAF468",
+    "euribor_3mesos": "D_1NBAD972",
+    "euribor_6mesos": "D_1NBAE972",
+    "ipc_general": "DIP2025LINP_C00.M",
+    "deute_public_espanya": "DTNPDE2010_P0000P_PF_APU",
+    "tipus_interes_bce": "D_1NBAS572",
 }
 
 

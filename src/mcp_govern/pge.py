@@ -9,8 +9,8 @@ import httpx
 BASE_URL = "https://www.hacienda.gob.es/sgt/gobiernoabierto/datos%20abiertos"
 REQUEST_TIMEOUT = 30.0
 
-# Anys disponibles amb PGE aprovats o prorrogats
-ANYS_DISPONIBLES = list(range(2015, 2026))
+# Anys disponibles amb PGE aprovats o prorrogats (verificats a l'API)
+ANYS_DISPONIBLES = [2019, 2023, 2024]
 
 
 def _url_index(any_: int) -> str:

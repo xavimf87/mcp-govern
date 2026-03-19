@@ -33,8 +33,6 @@ async def buscar_datasets(
         "_page": page,
         "_sort": "-modified",
     }
-    if query:
-        params["q"] = query
     if theme:
         params["theme_id"] = f"http://datos.gob.es/kos/sector-publico/sector/{theme}"
     if publisher:
@@ -42,8 +40,13 @@ async def buscar_datasets(
     if format_:
         params["format"] = format_
 
+    url = f"{BASE_URL}/catalog/dataset.json"
+    if query:
+        # L'API no té cerca per text lliure; cal usar l'endpoint de keyword
+        url = f"{BASE_URL}/catalog/dataset/keyword/{query}.json"
+
     async with httpx.AsyncClient(timeout=REQUEST_TIMEOUT) as client:
-        resp = await client.get(f"{BASE_URL}/catalog/dataset.json", params=params)
+        resp = await client.get(url, params=params)
         resp.raise_for_status()
         return resp.json()
 

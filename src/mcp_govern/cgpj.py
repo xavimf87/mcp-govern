@@ -1,16 +1,18 @@
 """Client async per a dades del CGPJ (Consejo General del Poder Judicial).
 
-Accedeix a les estadístiques judicials i al repositori de processos
-per corrupció publicats pel CGPJ via la seva API de dades obertes.
+Accedeix al repositori de processos per corrupció publicat pel CGPJ.
+
+NOTA: Les APIs públiques d'estadística judicial (stj/pcaxis) i el
+cercador de sentències (CENDOJ /search/indexAN) van ser desactivades
+pel CGPJ (retornen 404/403). Només resta disponible el repositori
+HTML de corrupció.
 """
 
 from __future__ import annotations
 
 import httpx
 
-# API pública d'estadística judicial del CGPJ
 BASE_URL = "https://www.poderjudicial.es"
-STATS_API = f"{BASE_URL}/cgpj/es/Temas/Estadistica-Judicial/Estadistica-por-Temas"
 REQUEST_TIMEOUT = 30.0
 
 # URL del repositori de dades sobre processos per corrupció
@@ -18,9 +20,6 @@ CORRUPCION_URL = (
     f"{BASE_URL}/cgpj/es/Temas/Transparencia/Repositorio-de-datos-sobre"
     "-procesos-por-corrupcion/"
 )
-
-# Endpoint PC-Axis per estadístiques judicials
-PCAXIS_API = f"{BASE_URL}/stj/pcaxis"
 
 
 async def buscar_estadistiques_judicials(
@@ -31,23 +30,22 @@ async def buscar_estadistiques_judicials(
 ) -> dict:
     """Cerca estadístiques judicials al CGPJ.
 
-    Args:
-        tema: Tema de l'estadística (ex: 'penal', 'civil', 'contencioso').
-        territori: Àmbit territorial (ex: 'nacional', 'Madrid', 'Barcelona').
-        any_: Any de les estadístiques.
+    NOTA: L'API pública d'estadística judicial (stj/pcaxis) ha estat
+    desactivada pel CGPJ i retorna 404. Es retorna un missatge informatiu
+    amb l'URL del portal web on es poden consultar manualment.
     """
-    params: dict[str, str] = {}
-    if tema:
-        params["tema"] = tema
-    if territori:
-        params["territorio"] = territori
-    if any_:
-        params["anio"] = any_
-
-    async with httpx.AsyncClient(timeout=REQUEST_TIMEOUT, follow_redirects=True) as client:
-        resp = await client.get(f"{PCAXIS_API}/juzgados.json", params=params)
-        resp.raise_for_status()
-        return resp.json()
+    return {
+        "error": "API no disponible",
+        "nota": (
+            "L'API pública d'estadística judicial del CGPJ "
+            "(stj/pcaxis/juzgados.json) ha estat desactivada i retorna 404. "
+            "Les estadístiques es poden consultar manualment al portal web."
+        ),
+        "url_portal": (
+            f"{BASE_URL}/cgpj/es/Temas/Estadistica-Judicial/"
+            "Estadistica-por-Temas"
+        ),
+    }
 
 
 async def obtenir_dades_corrupcio() -> dict:
@@ -58,14 +56,6 @@ async def obtenir_dades_corrupcio() -> dict:
     superiors de justícia.
     """
     async with httpx.AsyncClient(timeout=REQUEST_TIMEOUT, follow_redirects=True) as client:
-        # Intentar obtenir dades via la API JSON
-        resp = await client.get(
-            f"{PCAXIS_API}/corrupcion.json",
-        )
-        if resp.status_code == 200:
-            return resp.json()
-
-        # Fallback: obtenir la pàgina HTML del repositori
         resp = await client.get(CORRUPCION_URL)
         resp.raise_for_status()
         return {
@@ -92,35 +82,16 @@ async def cercar_sentencies(
 ) -> dict:
     """Cerca sentències al Centre de Documentació Judicial (CENDOJ).
 
-    Args:
-        text: Text lliure per cercar a les resolucions.
-        organ: Tipus d'òrgan judicial (ex: 'TS' Tribunal Suprem,
-               'AN' Audiència Nacional, 'AP' Audiència Provincial).
-        tipus: Tipus de resolució (ex: 'SENTENCIA', 'AUTO').
-        data_desde: Data inici DD/MM/YYYY.
-        data_fins: Data fi DD/MM/YYYY.
-        page: Pàgina de resultats.
-        page_size: Resultats per pàgina.
+    NOTA: L'API del CENDOJ (/search/indexAN) ha estat restringida pel
+    CGPJ i retorna 403 Forbidden. Es retorna un missatge informatiu.
     """
-    params: dict[str, str | int] = {
-        "page": page,
-        "pageSize": page_size,
+    return {
+        "error": "API no disponible",
+        "nota": (
+            "L'API del cercador de sentències del CENDOJ "
+            "(/search/indexAN) ha estat restringida pel CGPJ i "
+            "retorna 403 Forbidden. Les sentències es poden consultar "
+            "manualment al portal web."
+        ),
+        "url_portal": f"{BASE_URL}/search/indexAN",
     }
-    if text:
-        params["q"] = text
-    if organ:
-        params["organ"] = organ
-    if tipus:
-        params["tipo"] = tipus
-    if data_desde:
-        params["fechaDesde"] = data_desde
-    if data_fins:
-        params["fechaHasta"] = data_fins
-
-    async with httpx.AsyncClient(timeout=REQUEST_TIMEOUT, follow_redirects=True) as client:
-        resp = await client.get(
-            f"{BASE_URL}/search/indexAN",
-            params=params,
-        )
-        resp.raise_for_status()
-        return resp.json()
