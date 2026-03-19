@@ -72,10 +72,10 @@ Tria la opcio que facis servir:
 
 #### Opcio A: Claude Code (recomanat)
 
-Executa aquesta comanda dins de Claude Code:
+Executa aquesta comanda al terminal:
 
-```
-/mcp add govern -- uv run --directory /ruta/a/mcp-govern mcp-govern
+```bash
+claude mcp add --transport stdio mcp-govern -- uv run --directory /ruta/a/mcp-govern mcp-govern
 ```
 
 Substitueix `/ruta/a/mcp-govern` per la ruta real on has descarregat el projecte. Per exemple:
@@ -83,7 +83,7 @@ Substitueix `/ruta/a/mcp-govern` per la ruta real on has descarregat el projecte
 - Linux: `/home/elteunomdusuari/mcp-govern`
 - Windows: `C:\Users\elteunomdusuari\mcp-govern`
 
-Per verificar que funciona, executa `/mcp` a Claude Code i comprova que `govern` apareix com a `connected`.
+Per verificar que funciona, executa `/mcp` dins de Claude Code i comprova que `mcp-govern` apareix com a `connected`.
 
 #### Opcio B: Claude Desktop
 
