@@ -59,7 +59,7 @@ powershell -ExecutionPolicy ByPass -c "irm https://astral.sh/uv/install.ps1 | ie
 Obre un terminal i executa:
 
 ```bash
-git clone https://github.com/xavidop/mcp-govern.git
+git clone https://github.com/xavimf87/mcp-govern.git
 cd mcp-govern
 uv sync
 ```
