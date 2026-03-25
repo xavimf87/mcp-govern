@@ -1,0 +1,561 @@
+<!DOCTYPE html>
+<html lang="ca">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>mcp-govern — Dades obertes per a periodistes d'investigacio</title>
+<meta name="description" content="Connecta Claude amb 11 fonts de dades publiques d'Espanya i Catalunya. Contractes, subvencions, sous, lobbies, sentencies. Per a periodistes d'investigacio.">
+<meta property="og:title" content="mcp-govern — Dades obertes per a periodistes">
+<meta property="og:description" content="49 tools per investigar la transparencia publica amb IA. Contractes, subvencions, sous, lobbies, sentencies judicials.">
+<meta property="og:type" content="website">
+<meta property="og:url" content="https://xavimf87.github.io/mcp-govern/">
+<meta property="og:image" content="https://xavimf87.github.io/mcp-govern/og.png">
+<meta property="og:image:width" content="1200">
+<meta property="og:image:height" content="630">
+<meta property="og:locale" content="ca_ES">
+<meta name="twitter:card" content="summary_large_image">
+<meta name="twitter:title" content="mcp-govern — Dades obertes per a periodistes">
+<meta name="twitter:description" content="49 tools per investigar la transparencia publica amb IA. Connecta Claude amb 11 bases de dades d'Espanya i Catalunya.">
+<meta name="twitter:image" content="https://xavimf87.github.io/mcp-govern/og.png">
+<link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%231a1a1a' stroke-width='2'><path d='M3 21h18M3 7v1a3 3 0 0 0 6 0V7m0 1a3 3 0 0 0 6 0V7m0 1a3 3 0 0 0 6 0V7H3l2-4h14l2 4M5 21V10.87'/></svg>">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Source+Serif+4:opsz,wght@8..60,400;8..60,600;8..60,700;8..60,900&family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+<style>
+*,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
+:root{
+  --bg:#fafaf8;--bg-warm:#f5f3ef;--surface:#fff;
+  --border:#e5e2db;--border-light:#edeae4;
+  --text:#1a1a1a;--text-secondary:#555;--muted:#888;
+  --red:#c0392b;--red-light:#fdf2f0;--red-border:#f0d0ca;
+  --blue:#2c5282;--blue-light:#ebf4ff;
+  --gold:#b7791f;--gold-light:#fefcf3;
+  --green:#276749;--green-light:#f0fff4;
+  --serif:'Source Serif 4',Georgia,'Times New Roman',serif;
+  --sans:'Inter',-apple-system,system-ui,sans-serif;
+  --mono:'JetBrains Mono','SF Mono',Consolas,monospace;
+}
+html{scroll-behavior:smooth}
+body{font-family:var(--sans);background:var(--bg);color:var(--text);line-height:1.7;font-size:16px}
+
+/* Icons */
+.icon{width:20px;height:20px;stroke:currentColor;fill:none;stroke-width:2;stroke-linecap:round;stroke-linejoin:round;flex-shrink:0}
+.icon-lg{width:24px;height:24px}
+.icon-xl{width:28px;height:28px}
+
+/* Nav */
+nav{
+  position:sticky;top:0;z-index:100;
+  background:rgba(250,250,248,.92);backdrop-filter:blur(12px);
+  border-bottom:1px solid var(--border-light);
+  padding:.75rem 2rem;display:flex;align-items:center;justify-content:space-between;
+}
+.nav-brand{
+  font-family:var(--mono);font-weight:700;font-size:.95rem;
+  color:var(--text);text-decoration:none;display:flex;align-items:center;gap:.5rem;
+}
+.nav-links{display:flex;gap:1.75rem;align-items:center}
+.nav-links a{color:var(--text-secondary);text-decoration:none;font-size:.88rem;font-weight:500;transition:color .15s}
+.nav-links a:hover{color:var(--text)}
+.nav-cta{
+  display:inline-flex;align-items:center;gap:.4rem;
+  background:var(--text);color:#fff !important;padding:.4rem 1rem;
+  border-radius:6px;font-size:.85rem;font-weight:600;text-decoration:none;transition:opacity .15s;
+}
+.nav-cta svg{stroke:#fff}
+.nav-cta:hover{opacity:.85}
+@media(max-width:700px){
+  .nav-links a:not(.nav-cta){display:none}
+}
+
+/* Hero */
+.hero{max-width:780px;margin:0 auto;padding:5rem 2rem 3.5rem;text-align:center}
+.hero-kicker{
+  display:inline-flex;align-items:center;gap:.4rem;
+  font-size:.8rem;font-weight:600;text-transform:uppercase;letter-spacing:.08em;
+  color:var(--red);margin-bottom:1.5rem;
+}
+h1{
+  font-family:var(--serif);font-size:clamp(2.2rem,5.5vw,3.6rem);
+  font-weight:900;line-height:1.12;letter-spacing:-.02em;margin-bottom:1.5rem;
+}
+.hero-sub{
+  font-size:1.1rem;color:var(--text-secondary);
+  max-width:600px;margin:0 auto 2.5rem;line-height:1.8;
+}
+.hero-sub strong{color:var(--text);font-weight:600}
+
+.install-box{
+  background:var(--surface);border:1px solid var(--border);border-radius:8px;
+  padding:1rem 1.5rem;max-width:600px;margin:0 auto .75rem;
+  text-align:left;font-family:var(--mono);font-size:.87rem;
+  display:flex;align-items:center;gap:.5rem;position:relative;
+}
+.install-box .prompt{color:var(--muted);user-select:none}
+.install-box code{color:var(--text);flex:1}
+.install-box button{
+  background:none;border:1px solid var(--border);color:var(--muted);
+  padding:.25rem .6rem;border-radius:4px;cursor:pointer;font-size:.75rem;
+  font-family:var(--sans);transition:all .15s;white-space:nowrap;
+  display:flex;align-items:center;gap:.3rem;
+}
+.install-box button:hover{border-color:var(--text);color:var(--text)}
+.install-alt{font-size:.85rem;color:var(--muted);margin-bottom:3rem}
+.install-alt code{font-family:var(--mono);font-size:.82rem;background:var(--bg-warm);padding:.12rem .35rem;border-radius:3px}
+
+/* Stats */
+.stats-strip{
+  border-top:1px solid var(--border);border-bottom:1px solid var(--border);
+  background:var(--surface);padding:1.75rem 2rem;
+}
+.stats-inner{
+  max-width:860px;margin:0 auto;
+  display:grid;grid-template-columns:repeat(4,1fr);gap:1rem;text-align:center;
+}
+.stat-num{font-family:var(--serif);font-size:2rem;font-weight:900;color:var(--text)}
+.stat-label{font-size:.78rem;color:var(--muted);margin-top:.1rem;font-weight:500}
+@media(max-width:600px){.stats-inner{grid-template-columns:repeat(2,1fr)}}
+
+/* Sections */
+section{padding:4.5rem 2rem}
+.container{max-width:940px;margin:0 auto}
+.section-label{
+  display:inline-flex;align-items:center;gap:.4rem;
+  font-size:.75rem;font-weight:700;text-transform:uppercase;
+  letter-spacing:.1em;color:var(--red);margin-bottom:.75rem;
+}
+.section-title{
+  font-family:var(--serif);font-size:clamp(1.7rem,3.5vw,2.3rem);
+  font-weight:800;line-height:1.2;margin-bottom:.75rem;
+}
+.section-sub{color:var(--text-secondary);max-width:540px;margin-bottom:3rem;font-size:1rem}
+
+/* Use cases */
+.usecases{
+  display:grid;grid-template-columns:repeat(auto-fill,minmax(270px,1fr));gap:1.25rem;
+}
+.usecase{
+  background:var(--surface);border:1px solid var(--border);border-radius:8px;
+  padding:1.5rem;transition:box-shadow .15s;
+}
+.usecase:hover{box-shadow:0 2px 12px rgba(0,0,0,.05)}
+.usecase-header{display:flex;align-items:center;gap:.6rem;margin-bottom:.5rem}
+.usecase-header .icon{color:var(--text-secondary)}
+.usecase-title{font-weight:700;font-size:.95rem}
+.usecase-desc{color:var(--text-secondary);font-size:.88rem;line-height:1.6}
+
+/* Steps */
+.steps{
+  display:grid;grid-template-columns:repeat(3,1fr);gap:2.5rem;
+  counter-reset:step;
+}
+.step{position:relative;padding-left:3rem}
+.step::before{
+  counter-increment:step;content:counter(step);
+  position:absolute;left:0;top:.1rem;
+  width:2.2rem;height:2.2rem;border-radius:50%;
+  background:var(--text);color:#fff;
+  display:flex;align-items:center;justify-content:center;
+  font-weight:700;font-size:.85rem;
+}
+.step-title{font-weight:700;margin-bottom:.3rem;font-size:.95rem}
+.step-desc{color:var(--text-secondary);font-size:.88rem}
+.step-desc code{
+  font-family:var(--mono);font-size:.8rem;
+  background:var(--bg-warm);padding:.1rem .3rem;border-radius:3px;
+}
+@media(max-width:700px){.steps{grid-template-columns:1fr}}
+
+/* Sources table */
+.sources-table{width:100%;border-collapse:collapse;font-size:.88rem}
+.sources-table th{
+  text-align:left;font-weight:600;font-size:.73rem;
+  text-transform:uppercase;letter-spacing:.06em;color:var(--muted);
+  padding:.6rem .75rem;border-bottom:2px solid var(--border);
+}
+.sources-table td{padding:.65rem .75rem;border-bottom:1px solid var(--border-light);vertical-align:middle}
+.sources-table tr:hover td{background:var(--bg-warm)}
+.source-name{font-weight:600;display:flex;align-items:center;gap:.5rem}
+.source-name .icon{color:var(--muted);width:16px;height:16px}
+.source-badge{
+  display:inline-block;font-size:.68rem;font-weight:600;
+  padding:.12rem .45rem;border-radius:3px;
+}
+.badge-cat{background:var(--green-light);color:var(--green)}
+.badge-esp{background:var(--blue-light);color:var(--blue)}
+.badge-bcn{background:var(--gold-light);color:var(--gold)}
+
+/* Alerts (corruption) */
+.alerts{display:flex;flex-direction:column;gap:.75rem}
+.alert{
+  background:var(--red-light);border:1px solid var(--red-border);
+  border-left:4px solid var(--red);border-radius:6px;
+  padding:1.1rem 1.25rem;
+}
+.alert-header{display:flex;align-items:center;gap:.5rem;margin-bottom:.25rem}
+.alert-header .icon{color:var(--red);width:16px;height:16px}
+.alert-title{font-weight:700;font-size:.9rem;color:var(--red)}
+.alert-desc{color:var(--text-secondary);font-size:.87rem;line-height:1.6;margin-bottom:.4rem}
+.alert-cmd{
+  font-family:var(--mono);font-size:.8rem;color:var(--text);
+  background:#fff;padding:.3rem .55rem;border-radius:3px;
+  display:inline-block;border:1px solid var(--red-border);
+}
+
+/* Examples */
+.examples{display:flex;flex-direction:column;gap:.6rem}
+.example{
+  background:var(--surface);border:1px solid var(--border);
+  border-radius:6px;padding:.9rem 1.1rem;
+  display:grid;grid-template-columns:1fr 1fr;gap:1rem;align-items:center;
+  transition:box-shadow .15s;
+}
+.example:hover{box-shadow:0 1px 6px rgba(0,0,0,.04)}
+.example-q{font-family:var(--serif);font-size:.95rem;font-weight:600;font-style:italic}
+.example-a{font-size:.83rem;color:var(--text-secondary)}
+.example-a code{
+  font-family:var(--mono);font-size:.78rem;color:var(--blue);
+  background:var(--blue-light);padding:.08rem .25rem;border-radius:2px;
+}
+@media(max-width:700px){.example{grid-template-columns:1fr}}
+
+/* Tools accordion */
+.tools-list{display:flex;flex-direction:column;gap:.4rem}
+.tool-group{background:var(--surface);border:1px solid var(--border);border-radius:6px;overflow:hidden}
+.tool-group-header{
+  padding:.85rem 1.1rem;display:flex;align-items:center;gap:.6rem;
+  cursor:pointer;transition:background .1s;font-weight:600;font-size:.92rem;
+}
+.tool-group-header:hover{background:var(--bg-warm)}
+.tool-group-header .icon{color:var(--text-secondary);width:18px;height:18px}
+.tool-group-count{
+  font-size:.72rem;font-weight:600;
+  background:var(--bg-warm);border:1px solid var(--border);
+  padding:.08rem .4rem;border-radius:99px;color:var(--muted);
+}
+.tool-group-arrow{margin-left:auto;color:var(--muted);transition:transform .2s;display:flex}
+.tool-group.open .tool-group-arrow{transform:rotate(180deg)}
+.tool-group-body{display:none;border-top:1px solid var(--border-light);padding:.5rem 1.1rem}
+.tool-group.open .tool-group-body{display:block}
+.tool-row{display:flex;gap:.75rem;padding:.4rem 0;border-bottom:1px solid var(--border-light);font-size:.85rem}
+.tool-row:last-child{border-bottom:none}
+.tool-row-name{font-family:var(--mono);font-size:.8rem;color:var(--blue);min-width:240px;font-weight:500}
+.tool-row-desc{color:var(--text-secondary)}
+@media(max-width:700px){.tool-row{flex-direction:column;gap:.1rem}.tool-row-name{min-width:0}}
+
+/* Footer */
+footer{
+  border-top:1px solid var(--border);padding:2.5rem 2rem;
+  text-align:center;color:var(--muted);font-size:.83rem;
+}
+footer a{color:var(--text-secondary);text-decoration:none;font-weight:500}
+footer a:hover{color:var(--text)}
+.footer-links{display:flex;gap:1.75rem;justify-content:center;margin-bottom:.6rem;flex-wrap:wrap}
+</style>
+</head>
+<body>
+
+<!-- SVG sprite (hidden) -->
+<svg xmlns="http://www.w3.org/2000/svg" style="display:none">
+  <symbol id="i-search" viewBox="0 0 24 24"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></symbol>
+  <symbol id="i-file-text" viewBox="0 0 24 24"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/><polyline points="10 9 9 9 8 9"/></symbol>
+  <symbol id="i-coins" viewBox="0 0 24 24"><circle cx="8" cy="8" r="6"/><path d="M18.09 10.37A6 6 0 1 1 10.34 18"/><path d="M7 6h1v4"/><path d="m16.71 13.88.7.71-2.82 2.82"/></symbol>
+  <symbol id="i-users" viewBox="0 0 24 24"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></symbol>
+  <symbol id="i-globe" viewBox="0 0 24 24"><circle cx="12" cy="12" r="10"/><line x1="2" y1="12" x2="22" y2="12"/><path d="M12 2a15.3 15.3 0 0 1 4 10 15.3 15.3 0 0 1-4 10 15.3 15.3 0 0 1-4-10 15.3 15.3 0 0 1 4-10z"/></symbol>
+  <symbol id="i-wrench" viewBox="0 0 24 24"><path d="M14.7 6.3a1 1 0 0 0 0 1.4l1.6 1.6a1 1 0 0 0 1.4 0l3.77-3.77a6 6 0 0 1-7.94 7.94l-6.91 6.91a2.12 2.12 0 0 1-3-3l6.91-6.91a6 6 0 0 1 7.94-7.94l-3.76 3.76z"/></symbol>
+  <symbol id="i-alert-triangle" viewBox="0 0 24 24"><path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></symbol>
+  <symbol id="i-scissors" viewBox="0 0 24 24"><circle cx="6" cy="6" r="3"/><circle cx="6" cy="18" r="3"/><line x1="20" y1="4" x2="8.12" y2="15.88"/><line x1="14.47" y1="14.48" x2="20" y2="20"/><line x1="8.12" y1="8.12" x2="12" y2="12"/></symbol>
+  <symbol id="i-door" viewBox="0 0 24 24"><path d="M13 4h3a2 2 0 0 1 2 2v14"/><path d="M2 20h3"/><path d="M13 20h9"/><path d="M10 12v.01"/><path d="M13 4.562v16.157a1 1 0 0 1-1.242.97L5 20V5.562a2 2 0 0 1 1.515-1.94l4-1A2 2 0 0 1 13 4.561z"/></symbol>
+  <symbol id="i-handshake" viewBox="0 0 24 24"><path d="m11 17 2 2a1 1 0 1 0 3-3"/><path d="m14 14 2.5 2.5a1 1 0 1 0 3-3L14 8l-1-1-3.17 1.9"/><path d="M2 2l20 20"/><path d="m8.5 8.5-1 1a1 1 0 1 0 3 3l1-1"/><path d="M9.32 5.09C10.37 4.64 11.16 4 12 4c1 0 1.7.5 2.36 1.21L17 8"/><path d="M5.47 5.28A5 5 0 0 0 4.6 6.4C3.7 8.14 4 9.5 5.73 11.26"/></symbol>
+  <symbol id="i-wallet" viewBox="0 0 24 24"><path d="M21 12V7H5a2 2 0 0 1 0-4h14v4"/><path d="M3 5v14a2 2 0 0 0 2 2h16v-5"/><path d="M18 12a2 2 0 0 0 0 4h4v-4z"/></symbol>
+  <symbol id="i-scale" viewBox="0 0 24 24"><path d="m16 16 3-8 3 8c-.87.65-1.92 1-3 1s-2.13-.35-3-1z"/><path d="m2 16 3-8 3 8c-.87.65-1.92 1-3 1s-2.13-.35-3-1z"/><path d="M7 21h10"/><path d="M12 3v18"/><path d="M3 7h2c2 0 5-1 7-2 2 1 5 2 7 2h2"/></symbol>
+  <symbol id="i-eye-off" viewBox="0 0 24 24"><path d="M9.88 9.88a3 3 0 1 0 4.24 4.24"/><path d="M10.73 5.08A10.43 10.43 0 0 1 12 5c7 0 10 7 10 7a13.16 13.16 0 0 1-1.67 2.68"/><path d="M6.61 6.61A13.526 13.526 0 0 0 2 12s3 7 10 7a9.74 9.74 0 0 0 5.39-1.61"/><line x1="2" y1="2" x2="22" y2="22"/></symbol>
+  <symbol id="i-plane" viewBox="0 0 24 24"><path d="M17.8 19.2 16 11l3.5-3.5C21 6 21.5 4 21 3c-1-.5-3 0-4.5 1.5L13 8 4.8 6.2c-.5-.1-.9.1-1.1.5l-.3.5c-.2.5-.1 1 .3 1.3L9 12l-2 3H4l-1 1 3 2 2 3 1-1v-3l3-2 3.5 5.3c.3.4.8.5 1.3.3l.5-.2c.4-.3.6-.7.5-1.2z"/></symbol>
+  <symbol id="i-user-x" viewBox="0 0 24 24"><path d="M16 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="8.5" cy="7" r="4"/><line x1="18" y1="8" x2="23" y2="13"/><line x1="23" y1="8" x2="18" y2="13"/></symbol>
+  <symbol id="i-database" viewBox="0 0 24 24"><ellipse cx="12" cy="5" rx="9" ry="3"/><path d="M21 12c0 1.66-4 3-9 3s-9-1.34-9-3"/><path d="M3 5v14c0 1.66 4 3 9 3s9-1.34 9-3V5"/></symbol>
+  <symbol id="i-building" viewBox="0 0 24 24"><rect x="4" y="2" width="16" height="20" rx="2" ry="2"/><path d="M9 22v-4h6v4"/><path d="M8 6h.01"/><path d="M16 6h.01"/><path d="M12 6h.01"/><path d="M12 10h.01"/><path d="M12 14h.01"/><path d="M16 10h.01"/><path d="M16 14h.01"/><path d="M8 10h.01"/><path d="M8 14h.01"/></symbol>
+  <symbol id="i-bar-chart" viewBox="0 0 24 24"><line x1="12" y1="20" x2="12" y2="10"/><line x1="18" y1="20" x2="18" y2="4"/><line x1="6" y1="20" x2="6" y2="16"/></symbol>
+  <symbol id="i-landmark" viewBox="0 0 24 24"><line x1="3" y1="22" x2="21" y2="22"/><line x1="6" y1="18" x2="6" y2="11"/><line x1="10" y1="18" x2="10" y2="11"/><line x1="14" y1="18" x2="14" y2="11"/><line x1="18" y1="18" x2="18" y2="11"/><polygon points="12 2 20 7 4 7"/></symbol>
+  <symbol id="i-scroll" viewBox="0 0 24 24"><path d="M8 21h12a2 2 0 0 0 2-2v-2H10v2a2 2 0 1 1-4 0V5a2 2 0 1 0-4 0v3h4"/><path d="M19 17V5a2 2 0 0 0-2-2H4"/></symbol>
+  <symbol id="i-trending-up" viewBox="0 0 24 24"><polyline points="23 6 13.5 15.5 8.5 10.5 1 18"/><polyline points="17 6 23 6 23 12"/></symbol>
+  <symbol id="i-copy" viewBox="0 0 24 24"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></symbol>
+  <symbol id="i-github" viewBox="0 0 24 24"><path d="M9 19c-5 1.5-5-2.5-7-3m14 6v-3.87a3.37 3.37 0 0 0-.94-2.61c3.14-.35 6.44-1.54 6.44-7A5.44 5.44 0 0 0 20 4.77 5.07 5.07 0 0 0 19.91 1S18.73.65 16 2.48a13.38 13.38 0 0 0-7 0C6.27.65 5.09 1 5.09 1A5.07 5.07 0 0 0 5 4.77a5.44 5.44 0 0 0-1.5 3.78c0 5.42 3.3 6.61 6.44 7A3.37 3.37 0 0 0 9 18.13V22"/></symbol>
+  <symbol id="i-package" viewBox="0 0 24 24"><line x1="16.5" y1="9.4" x2="7.5" y2="4.21"/><path d="M21 16V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16z"/><polyline points="3.27 6.96 12 12.01 20.73 6.96"/><line x1="12" y1="22.08" x2="12" y2="12"/></symbol>
+  <symbol id="i-chevron-down" viewBox="0 0 24 24"><polyline points="6 9 12 15 18 9"/></symbol>
+</svg>
+
+<!-- Nav -->
+<nav>
+  <a href="#" class="nav-brand">
+    <svg class="icon"><use href="#i-database"/></svg>
+    mcp-govern
+  </a>
+  <div class="nav-links">
+    <a href="#que-pots-fer">Que pots fer</a>
+    <a href="#fonts">Fonts</a>
+    <a href="#corrupcio">Corrupcio</a>
+    <a href="#tools">Tools</a>
+    <a href="https://github.com/xavimf87/mcp-govern" class="nav-cta">
+      <svg class="icon" style="width:16px;height:16px"><use href="#i-github"/></svg>
+      GitHub
+    </a>
+  </div>
+</nav>
+
+<!-- Hero -->
+<section class="hero">
+  <div class="hero-kicker">
+    <svg class="icon" style="width:14px;height:14px"><use href="#i-search"/></svg>
+    Periodisme d'investigacio amb IA
+  </div>
+  <h1>Accedeix a les dades publiques d'Espanya amb una sola pregunta</h1>
+  <p class="hero-sub">
+    <strong>mcp-govern</strong> connecta Claude amb <strong>11 bases de dades obertes</strong>:
+    contractes, subvencions, sous d'alts carrecs, lobbies, sentencies judicials, nomenaments del BOE
+    i molt mes. Tu preguntes, Claude investiga.
+  </p>
+
+  <div class="install-box">
+    <span class="prompt">$</span>
+    <code>claude mcp add mcp-govern -- uvx mcp-govern</code>
+    <button onclick="navigator.clipboard.writeText('claude mcp add --transport stdio mcp-govern -- uvx mcp-govern');this.textContent='Copiat!'">
+      <svg class="icon" style="width:14px;height:14px"><use href="#i-copy"/></svg>
+      Copiar
+    </button>
+  </div>
+  <div class="install-alt">O amb pip: <code>pip install mcp-govern</code></div>
+</section>
+
+<!-- Stats -->
+<div class="stats-strip">
+  <div class="stats-inner">
+    <div><div class="stat-num">49</div><div class="stat-label">Tools disponibles</div></div>
+    <div><div class="stat-num">11</div><div class="stat-label">Fonts de dades</div></div>
+    <div><div class="stat-num">113K+</div><div class="stat-label">Datasets accessibles</div></div>
+    <div><div class="stat-num">8</div><div class="stat-label">Patrons de corrupcio</div></div>
+  </div>
+</div>
+
+<!-- Use cases -->
+<section id="que-pots-fer">
+  <div class="container">
+    <div class="section-label"><svg class="icon" style="width:14px;height:14px"><use href="#i-search"/></svg> Per a periodistes</div>
+    <h2 class="section-title">Que pots investigar?</h2>
+    <p class="section-sub">Cada pregunta en llenguatge natural es converteix en consultes reals a bases de dades publiques.</p>
+    <div class="usecases">
+      <div class="usecase">
+        <div class="usecase-header"><svg class="icon"><use href="#i-search"/></svg><div class="usecase-title">Perfil complet d'una empresa</div></div>
+        <div class="usecase-desc">Contractes, subvencions, reunions amb lobbies, nomenaments al BOE i registre mercantil. Creuant 13 fonts en paral·lel.</div>
+      </div>
+      <div class="usecase">
+        <div class="usecase-header"><svg class="icon"><use href="#i-scissors"/></svg><div class="usecase-title">Fraccionament de contractes</div></div>
+        <div class="usecase-desc">Detecta empreses que reben molts contractes menors del mateix departament per evitar la licitacio publica.</div>
+      </div>
+      <div class="usecase">
+        <div class="usecase-header"><svg class="icon"><use href="#i-door"/></svg><div class="usecase-title">Portes giratories</div></div>
+        <div class="usecase-desc">Creua alts carrecs cessats amb empreses que reben contractes o subvencions poc despres del cessament.</div>
+      </div>
+      <div class="usecase">
+        <div class="usecase-header"><svg class="icon"><use href="#i-wallet"/></svg><div class="usecase-title">Sous i retribucions</div></div>
+        <div class="usecase-desc">Sous nominals d'alts carrecs, directius del sector public, taules salarials de mossos, bombers, funcionaris.</div>
+      </div>
+      <div class="usecase">
+        <div class="usecase-header"><svg class="icon"><use href="#i-handshake"/></svg><div class="usecase-title">Lobby &rarr; Contracte</div></div>
+        <div class="usecase-desc">Correlaciona reunions amb grups d'interes i contractes adjudicats poc despres al mateix sector.</div>
+      </div>
+      <div class="usecase">
+        <div class="usecase-header"><svg class="icon"><use href="#i-scale"/></svg><div class="usecase-title">Sentencies de corrupcio</div></div>
+        <div class="usecase-desc">Cerca sentencies al CENDOJ per malversacio, prevaricacio, suborn i altres delictes contra l'administracio.</div>
+      </div>
+      <div class="usecase">
+        <div class="usecase-header"><svg class="icon"><use href="#i-eye-off"/></svg><div class="usecase-title">Subvencions amb noms reals</div></div>
+        <div class="usecase-desc">La BDNS inclou noms de persones fisiques i juridiques. Cerca per nom, organ o comunitat autonoma.</div>
+      </div>
+      <div class="usecase">
+        <div class="usecase-header"><svg class="icon"><use href="#i-scroll"/></svg><div class="usecase-title">Normativa i legislacio</div></div>
+        <div class="usecase-desc">Cerca al BOE i al DOGC: lleis, decrets, ordres, nomenaments i cessaments per departament.</div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- How it works -->
+<section style="background:var(--bg-warm)">
+  <div class="container">
+    <div class="section-label">Com funciona</div>
+    <h2 class="section-title">De la pregunta a la resposta</h2>
+    <p class="section-sub">No necessites saber programar. Nomes cal instal·lar-lo i preguntar.</p>
+    <div class="steps">
+      <div class="step"><div class="step-title">Instal·la</div><div class="step-desc"><code>uvx mcp-govern</code> o <code>pip install mcp-govern</code>. Sense clonar repositoris.</div></div>
+      <div class="step"><div class="step-title">Pregunta</div><div class="step-desc">Obre Claude i pregunta: <em>"Investiga l'empresa X: contractes, subvencions, lobbies"</em></div></div>
+      <div class="step"><div class="step-title">Investiga</div><div class="step-desc">Claude creua les bases de dades, detecta patrons i presenta les dades amb fonts verificables.</div></div>
+    </div>
+  </div>
+</section>
+
+<!-- Data sources -->
+<section id="fonts">
+  <div class="container">
+    <div class="section-label"><svg class="icon" style="width:14px;height:14px"><use href="#i-database"/></svg> Fonts de dades</div>
+    <h2 class="section-title">11 bases de dades publiques</h2>
+    <p class="section-sub">Totes les dades son publiques. No cal autenticacio ni API keys.</p>
+    <table class="sources-table">
+      <thead><tr><th>Font</th><th>Abast</th><th>Que hi trobaras</th></tr></thead>
+      <tbody>
+        <tr><td><span class="source-name"><svg class="icon"><use href="#i-landmark"/></svg> Transparencia Catalunya</span></td><td><span class="source-badge badge-cat">Catalunya</span></td><td>Contractes, subvencions, retribucions, pressupostos, lobbies, viatges, declaracions</td></tr>
+        <tr><td><span class="source-name"><svg class="icon"><use href="#i-coins"/></svg> BDNS</span></td><td><span class="source-badge badge-esp">Espanya</span></td><td>Subvencions amb <strong>noms reals</strong> de beneficiaris. Cerca per text, organ, comunitat</td></tr>
+        <tr><td><span class="source-name"><svg class="icon"><use href="#i-scroll"/></svg> BOE</span></td><td><span class="source-badge badge-esp">Espanya</span></td><td>Nomenaments, cessaments, contractes del sector public, legislacio consolidada</td></tr>
+        <tr><td><span class="source-name"><svg class="icon"><use href="#i-file-text"/></svg> DOGC</span></td><td><span class="source-badge badge-cat">Catalunya</span></td><td>Normativa: lleis, decrets, ordres, resolucions</td></tr>
+        <tr><td><span class="source-name"><svg class="icon"><use href="#i-scale"/></svg> CGPJ</span></td><td><span class="source-badge badge-esp">Espanya</span></td><td>Sentencies del CENDOJ, estadistiques judicials, repositori de corrupcio</td></tr>
+        <tr><td><span class="source-name"><svg class="icon"><use href="#i-building"/></svg> Open Data BCN</span></td><td><span class="source-badge badge-bcn">Barcelona</span></td><td>553 datasets: pressupostos, contractes, seguretat, transport, medi ambient</td></tr>
+        <tr><td><span class="source-name"><svg class="icon"><use href="#i-building"/></svg> BORME</span></td><td><span class="source-badge badge-esp">Espanya</span></td><td>Registre Mercantil: constitucions, nomenaments, cessaments d'empreses</td></tr>
+        <tr><td><span class="source-name"><svg class="icon"><use href="#i-globe"/></svg> datos.gob.es</span></td><td><span class="source-badge badge-esp">Espanya</span></td><td>Cataleg nacional amb 113.000+ datasets de dades obertes</td></tr>
+        <tr><td><span class="source-name"><svg class="icon"><use href="#i-bar-chart"/></svg> INE</span></td><td><span class="source-badge badge-esp">Espanya</span></td><td>111 operacions estadistiques: IPC, EPA, PIB, demografia</td></tr>
+        <tr><td><span class="source-name"><svg class="icon"><use href="#i-trending-up"/></svg> Banc d'Espanya</span></td><td><span class="source-badge badge-esp">Espanya</span></td><td>Euribor, deute public, tipus d'interes del BCE, IPC</td></tr>
+        <tr><td><span class="source-name"><svg class="icon"><use href="#i-wallet"/></svg> PGE</span></td><td><span class="source-badge badge-esp">Espanya</span></td><td>Pressupostos Generals de l'Estat per ministeris i programes</td></tr>
+      </tbody>
+    </table>
+  </div>
+</section>
+
+<!-- Corruption patterns -->
+<section id="corrupcio" style="background:var(--bg-warm)">
+  <div class="container">
+    <div class="section-label"><svg class="icon" style="width:14px;height:14px"><use href="#i-alert-triangle"/></svg> Deteccio automatica</div>
+    <h2 class="section-title">8 patrons de corrupcio</h2>
+    <p class="section-sub">Claude aplica aquestes estrategies automaticament quan li demanes investigar.</p>
+    <div class="alerts">
+      <div class="alert"><div class="alert-header"><svg class="icon"><use href="#i-scissors"/></svg><div class="alert-title">1. Fraccionament de contractes</div></div><div class="alert-desc">Molts contractes menors (&lt;15.000 EUR) del mateix departament a la mateixa empresa.</div><div class="alert-cmd">detectar_fraccionament(empresa="X")</div></div>
+      <div class="alert"><div class="alert-header"><svg class="icon"><use href="#i-bar-chart"/></svg><div class="alert-title">2. Concentracio de proveidors</div></div><div class="alert-desc">Una empresa acumula un percentatge anomal del volum de contractacio d'un departament.</div><div class="alert-cmd">detectar_concentracio_contractes(departament="Salut")</div></div>
+      <div class="alert"><div class="alert-header"><svg class="icon"><use href="#i-door"/></svg><div class="alert-title">3. Porta giratoria</div></div><div class="alert-desc">Alts carrecs cessats que apareixen en empreses que reben contractes publics poc despres.</div><div class="alert-cmd">cercar_declaracions_activitats(actiu=false)</div></div>
+      <div class="alert"><div class="alert-header"><svg class="icon"><use href="#i-handshake"/></svg><div class="alert-title">4. Lobby &rarr; Contracte</div></div><div class="alert-desc">Reunions amb grups d'interes seguides d'adjudicacions al mateix sector o entitat.</div><div class="alert-cmd">cercar_agenda_lobbies(departament="...")</div></div>
+      <div class="alert"><div class="alert-header"><svg class="icon"><use href="#i-wallet"/></svg><div class="alert-title">5. Retribucions anomales</div></div><div class="alert-desc">Directius d'entitats subvencionades que cobren mes que el president de la Generalitat.</div><div class="alert-cmd">cercar_retribucions_subvencionats()</div></div>
+      <div class="alert"><div class="alert-header"><svg class="icon"><use href="#i-eye-off"/></svg><div class="alert-title">6. Subvencions opaques</div></div><div class="alert-desc">Beneficiaris ocults al RAISC que es poden identificar creuant amb la BDNS.</div><div class="alert-cmd">bdns_cercar_concessions(texto="...")</div></div>
+      <div class="alert"><div class="alert-header"><svg class="icon"><use href="#i-plane"/></svg><div class="alert-title">7. Viatges sospitosos</div></div><div class="alert-desc">Viatges a l'estranger amb despeses desproporcionades o sense justificacio.</div><div class="alert-cmd">cercar_viatges_alts_carrecs()</div></div>
+      <div class="alert"><div class="alert-header"><svg class="icon"><use href="#i-user-x"/></svg><div class="alert-title">8. Nepotisme en llocs de treball</div></div><div class="alert-desc">Concentracio de llocs de lliure designacio en un departament.</div><div class="alert-cmd">cercar_llocs_treball(prov_lloc="LD")</div></div>
+    </div>
+  </div>
+</section>
+
+<!-- Examples -->
+<section id="exemples">
+  <div class="container">
+    <div class="section-label">Exemples</div>
+    <h2 class="section-title">Pregunta en llenguatge natural</h2>
+    <p class="section-sub">Claude tria automaticament les tools adequades per cada pregunta.</p>
+    <div class="examples">
+      <div class="example"><div class="example-q">"Investiga Telefonica: contractes, subvencions, lobbies, tot."</div><div class="example-a">Creua 13 fonts en paral·lel amb <code>investigar_entitat</code></div></div>
+      <div class="example"><div class="example-q">"Quant cobra el president de la Generalitat?"</div><div class="example-a"><code>cercar_retribucions_alts_carrecs(carrec="president")</code></div></div>
+      <div class="example"><div class="example-q">"Quines empreses acaparen els contractes de Salut el 2024?"</div><div class="example-a"><code>detectar_concentracio_contractes(departament="Salut")</code></div></div>
+      <div class="example"><div class="example-q">"Busca sentencies de malversacio a l'Audiencia Nacional"</div><div class="example-a"><code>cgpj_cercar_sentencies(text="malversacion")</code></div></div>
+      <div class="example"><div class="example-q">"Qui ha rebut subvencions de Telefonica a Catalunya?"</div><div class="example-a"><code>bdns_cercar_concessions(texto="Telefonica", comunitat="CATALUNA")</code></div></div>
+      <div class="example"><div class="example-q">"Quins decrets s'han publicat al DOGC el 2025?"</div><div class="example-a"><code>dogc_cercar_normativa(rang="Decret", any_="2025")</code></div></div>
+      <div class="example"><div class="example-q">"A quant esta l'Euribor?"</div><div class="example-a"><code>bde_series_destacades()</code></div></div>
+      <div class="example"><div class="example-q">"Quin es el pressupost de Girona pel 2024?"</div><div class="example-a"><code>cercar_pressupostos_municipals(municipi="Girona")</code></div></div>
+    </div>
+  </div>
+</section>
+
+<!-- Tools -->
+<section id="tools" style="background:var(--bg-warm)">
+  <div class="container">
+    <div class="section-label"><svg class="icon" style="width:14px;height:14px"><use href="#i-wrench"/></svg> Referencia</div>
+    <h2 class="section-title">49 tools disponibles</h2>
+    <p class="section-sub">Cada tool es una consulta especifica. Claude les combina automaticament.</p>
+    <div class="tools-list">
+      <div class="tool-group open">
+        <div class="tool-group-header" onclick="this.parentElement.classList.toggle('open')"><svg class="icon"><use href="#i-search"/></svg> Investigacio <span class="tool-group-count">3</span><span class="tool-group-arrow"><svg class="icon" style="width:16px;height:16px"><use href="#i-chevron-down"/></svg></span></div>
+        <div class="tool-group-body">
+          <div class="tool-row"><span class="tool-row-name">investigar_entitat</span><span class="tool-row-desc">Creua totes les fonts per una empresa o persona. Accepta CIF/NIF.</span></div>
+          <div class="tool-row"><span class="tool-row-name">detectar_concentracio_contractes</span><span class="tool-row-desc">Top N empreses per volum de contractacio d'un departament.</span></div>
+          <div class="tool-row"><span class="tool-row-name">detectar_fraccionament</span><span class="tool-row-desc">Analitza contractes menors sospitosos amb alertes automatiques.</span></div>
+        </div>
+      </div>
+      <div class="tool-group">
+        <div class="tool-group-header" onclick="this.parentElement.classList.toggle('open')"><svg class="icon"><use href="#i-file-text"/></svg> Contractacio publica <span class="tool-group-count">4</span><span class="tool-group-arrow"><svg class="icon" style="width:16px;height:16px"><use href="#i-chevron-down"/></svg></span></div>
+        <div class="tool-group-body">
+          <div class="tool-row"><span class="tool-row-name">cercar_contractes</span><span class="tool-row-desc">Registre public. Any, tipus, adjudicatari, import.</span></div>
+          <div class="tool-row"><span class="tool-row-name">cercar_publicacions_pscp</span><span class="tool-row-desc">Licitacions, adjudicacions, formalitzacions.</span></div>
+          <div class="tool-row"><span class="tool-row-name">cercar_contractes_menors</span><span class="tool-row-desc">Adjudicacio directa per empresa i departament.</span></div>
+          <div class="tool-row"><span class="tool-row-name">detall_contracte</span><span class="tool-row-desc">Detall complet per codi d'expedient.</span></div>
+        </div>
+      </div>
+      <div class="tool-group">
+        <div class="tool-group-header" onclick="this.parentElement.classList.toggle('open')"><svg class="icon"><use href="#i-coins"/></svg> Subvencions <span class="tool-group-count">6</span><span class="tool-group-arrow"><svg class="icon" style="width:16px;height:16px"><use href="#i-chevron-down"/></svg></span></div>
+        <div class="tool-group-body">
+          <div class="tool-row"><span class="tool-row-name">cercar_subvencions</span><span class="tool-row-desc">RAISC Catalunya. Beneficiari, import, departament.</span></div>
+          <div class="tool-row"><span class="tool-row-name">cercar_convocatories</span><span class="tool-row-desc">Convocatories RAISC per any i finalitat.</span></div>
+          <div class="tool-row"><span class="tool-row-name">detall_subvencio</span><span class="tool-row-desc">Detall per codi RAISC o BDNS.</span></div>
+          <div class="tool-row"><span class="tool-row-name">bdns_cercar_concessions</span><span class="tool-row-desc">Tota Espanya. Noms reals. Text, organ, comunitat.</span></div>
+          <div class="tool-row"><span class="tool-row-name">bdns_cercar_convocatories</span><span class="tool-row-desc">Convocatories estatals per dates.</span></div>
+          <div class="tool-row"><span class="tool-row-name">bdns_detall_convocatoria</span><span class="tool-row-desc">Detall convocatoria BDNS.</span></div>
+        </div>
+      </div>
+      <div class="tool-group">
+        <div class="tool-group-header" onclick="this.parentElement.classList.toggle('open')"><svg class="icon"><use href="#i-users"/></svg> Retribucions, personal i transparencia <span class="tool-group-count">11</span><span class="tool-group-arrow"><svg class="icon" style="width:16px;height:16px"><use href="#i-chevron-down"/></svg></span></div>
+        <div class="tool-group-body">
+          <div class="tool-row"><span class="tool-row-name">cercar_retribucions_alts_carrecs</span><span class="tool-row-desc">Sous nominals d'alts carrecs.</span></div>
+          <div class="tool-row"><span class="tool-row-name">cercar_directius_sector_public</span><span class="tool-row-desc">Sous directius entitats publiques.</span></div>
+          <div class="tool-row"><span class="tool-row-name">cercar_retribucions_subvencionats</span><span class="tool-row-desc">Directius d'entitats subvencionades.</span></div>
+          <div class="tool-row"><span class="tool-row-name">consultar_taules_salarials</span><span class="tool-row-desc">Mossos, bombers, funcionaris, laborals.</span></div>
+          <div class="tool-row"><span class="tool-row-name">cercar_llocs_treball</span><span class="tool-row-desc">RLT: departament, lloc, nivell.</span></div>
+          <div class="tool-row"><span class="tool-row-name">cercar_oferta_ocupacio</span><span class="tool-row-desc">Oferta publica: places, cos, escala.</span></div>
+          <div class="tool-row"><span class="tool-row-name">cercar_declaracions_activitats</span><span class="tool-row-desc">Activitats publiques i privades.</span></div>
+          <div class="tool-row"><span class="tool-row-name">cercar_agenda_lobbies</span><span class="tool-row-desc">Reunions amb grups d'interes.</span></div>
+          <div class="tool-row"><span class="tool-row-name">cercar_viatges_alts_carrecs</span><span class="tool-row-desc">Viatges a l'estranger amb despeses.</span></div>
+          <div class="tool-row"><span class="tool-row-name">cercar_pressupostos</span><span class="tool-row-desc">Pressupostos Generalitat.</span></div>
+          <div class="tool-row"><span class="tool-row-name">cercar_pressupostos_municipals</span><span class="tool-row-desc">Pressupostos municipals.</span></div>
+        </div>
+      </div>
+      <div class="tool-group">
+        <div class="tool-group-header" onclick="this.parentElement.classList.toggle('open')"><svg class="icon"><use href="#i-globe"/></svg> BOE, DOGC, BORME, INE, BdE, PGE, datos.gob, CGPJ, BCN <span class="tool-group-count">23</span><span class="tool-group-arrow"><svg class="icon" style="width:16px;height:16px"><use href="#i-chevron-down"/></svg></span></div>
+        <div class="tool-group-body">
+          <div class="tool-row"><span class="tool-row-name">boe_sumari</span><span class="tool-row-desc">Sumari diari del BOE.</span></div>
+          <div class="tool-row"><span class="tool-row-name">boe_nomenaments</span><span class="tool-row-desc">Nomenaments i cessaments.</span></div>
+          <div class="tool-row"><span class="tool-row-name">boe_contractes</span><span class="tool-row-desc">Contractes sector public.</span></div>
+          <div class="tool-row"><span class="tool-row-name">boe_legislacio</span><span class="tool-row-desc">Legislacio consolidada amb filtres.</span></div>
+          <div class="tool-row"><span class="tool-row-name">boe_departaments</span><span class="tool-row-desc">211 departaments del BOE.</span></div>
+          <div class="tool-row"><span class="tool-row-name">dogc_cercar_normativa</span><span class="tool-row-desc">Normativa DOGC: lleis, decrets, ordres.</span></div>
+          <div class="tool-row"><span class="tool-row-name">borme_sumari</span><span class="tool-row-desc">Registre Mercantil per provincia.</span></div>
+          <div class="tool-row"><span class="tool-row-name">ine_operacions</span><span class="tool-row-desc">111 operacions estadistiques.</span></div>
+          <div class="tool-row"><span class="tool-row-name">ine_taules</span><span class="tool-row-desc">Taules d'una operacio.</span></div>
+          <div class="tool-row"><span class="tool-row-name">ine_dades_taula</span><span class="tool-row-desc">Dades reals d'una taula.</span></div>
+          <div class="tool-row"><span class="tool-row-name">ine_serie</span><span class="tool-row-desc">Serie temporal per codi.</span></div>
+          <div class="tool-row"><span class="tool-row-name">bde_serie</span><span class="tool-row-desc">Series financeres del BdE.</span></div>
+          <div class="tool-row"><span class="tool-row-name">bde_series_destacades</span><span class="tool-row-desc">Euribor, IPC, deute, tipus BCE.</span></div>
+          <div class="tool-row"><span class="tool-row-name">pge_estructura</span><span class="tool-row-desc">Estructura PGE per ministeris.</span></div>
+          <div class="tool-row"><span class="tool-row-name">pge_despeses</span><span class="tool-row-desc">Despeses reals per programa.</span></div>
+          <div class="tool-row"><span class="tool-row-name">cgpj_dades_corrupcio</span><span class="tool-row-desc">Repositori processos per corrupcio.</span></div>
+          <div class="tool-row"><span class="tool-row-name">cgpj_cercar_sentencies</span><span class="tool-row-desc">Sentencies CENDOJ per text.</span></div>
+          <div class="tool-row"><span class="tool-row-name">cgpj_estadistiques_judicials</span><span class="tool-row-desc">Estadistiques judicials.</span></div>
+          <div class="tool-row"><span class="tool-row-name">datosgob_cercar_datasets</span><span class="tool-row-desc">113.000+ datasets nacionals.</span></div>
+          <div class="tool-row"><span class="tool-row-name">datosgob_detall_dataset</span><span class="tool-row-desc">Detall d'un dataset nacional.</span></div>
+          <div class="tool-row"><span class="tool-row-name">bcn_cercar_datasets</span><span class="tool-row-desc">553 datasets Barcelona.</span></div>
+          <div class="tool-row"><span class="tool-row-name">bcn_detall_dataset</span><span class="tool-row-desc">Detall dataset Barcelona.</span></div>
+          <div class="tool-row"><span class="tool-row-name">bcn_obtenir_dades</span><span class="tool-row-desc">Dades reals d'un recurs BCN.</span></div>
+        </div>
+      </div>
+      <div class="tool-group">
+        <div class="tool-group-header" onclick="this.parentElement.classList.toggle('open')"><svg class="icon"><use href="#i-wrench"/></svg> Utilitats <span class="tool-group-count">2</span><span class="tool-group-arrow"><svg class="icon" style="width:16px;height:16px"><use href="#i-chevron-down"/></svg></span></div>
+        <div class="tool-group-body">
+          <div class="tool-row"><span class="tool-row-name">llistar_camps</span><span class="tool-row-desc">Camps disponibles d'un dataset.</span></div>
+          <div class="tool-row"><span class="tool-row-name">estadistiques</span><span class="tool-row-desc">Agregacions (count/sum) sobre qualsevol dataset.</span></div>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- Footer -->
+<footer>
+  <div class="footer-links">
+    <a href="https://github.com/xavimf87/mcp-govern">GitHub</a>
+    <a href="https://pypi.org/project/mcp-govern/">PyPI</a>
+    <a href="https://github.com/xavimf87/mcp-govern/blob/main/CHANGELOG.md">Changelog</a>
+    <a href="https://github.com/xavimf87/mcp-govern/issues">Issues</a>
+  </div>
+  <p>MIT License &middot; Dades obertes per a tothom &middot; Cap dada requereix autenticacio.</p>
+</footer>
+
+</body>
+</html>

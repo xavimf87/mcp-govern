@@ -1,0 +1,40 @@
+<svg width="1200" height="630" xmlns="http://www.w3.org/2000/svg">
+  <rect width="1200" height="630" fill="#fafaf8"/>
+  <rect x="0" y="0" width="1200" height="4" fill="#c0392b"/>
+
+  <!-- Grid lines -->
+  <line x1="80" y1="580" x2="1120" y2="580" stroke="#e5e2db" stroke-width="1"/>
+  <line x1="80" y1="50" x2="80" y2="580" stroke="#e5e2db" stroke-width="1"/>
+
+  <!-- Kicker -->
+  <text x="80" y="200" font-family="Georgia, serif" font-size="18" font-weight="600" fill="#c0392b" letter-spacing="3" text-transform="uppercase">PERIODISME D'INVESTIGACIO AMB IA</text>
+
+  <!-- Title -->
+  <text x="80" y="280" font-family="Georgia, serif" font-size="64" font-weight="900" fill="#1a1a1a">mcp-govern</text>
+
+  <!-- Subtitle -->
+  <text x="80" y="340" font-family="-apple-system, system-ui, sans-serif" font-size="26" fill="#555">Connecta Claude amb 11 bases de dades obertes</text>
+  <text x="80" y="380" font-family="-apple-system, system-ui, sans-serif" font-size="26" fill="#555">d'Espanya i Catalunya</text>
+
+  <!-- Stats -->
+  <text x="80" y="470" font-family="Georgia, serif" font-size="42" font-weight="900" fill="#1a1a1a">49</text>
+  <text x="80" y="500" font-family="-apple-system, sans-serif" font-size="14" fill="#888">tools</text>
+
+  <text x="230" y="470" font-family="Georgia, serif" font-size="42" font-weight="900" fill="#1a1a1a">11</text>
+  <text x="230" y="500" font-family="-apple-system, sans-serif" font-size="14" fill="#888">fonts</text>
+
+  <text x="370" y="470" font-family="Georgia, serif" font-size="42" font-weight="900" fill="#1a1a1a">113K+</text>
+  <text x="370" y="500" font-family="-apple-system, sans-serif" font-size="14" fill="#888">datasets</text>
+
+  <text x="600" y="470" font-family="Georgia, serif" font-size="42" font-weight="900" fill="#1a1a1a">8</text>
+  <text x="600" y="500" font-family="-apple-system, sans-serif" font-size="14" fill="#888">patrons corrupcio</text>
+
+  <!-- Install command -->
+  <rect x="80" y="530" width="600" height="36" rx="4" fill="#f5f3ef" stroke="#e5e2db"/>
+  <text x="96" y="554" font-family="Consolas, monospace" font-size="14" fill="#888">$</text>
+  <text x="116" y="554" font-family="Consolas, monospace" font-size="14" fill="#1a1a1a">pip install mcp-govern</text>
+
+  <!-- PyPI badge area -->
+  <rect x="900" y="460" width="220" height="44" rx="6" fill="#1a1a1a"/>
+  <text x="960" y="488" font-family="-apple-system, sans-serif" font-size="16" font-weight="600" fill="#fff">PyPI v1.0.0</text>
+</svg>
