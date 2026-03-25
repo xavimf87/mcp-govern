@@ -2,15 +2,84 @@
 name = "mcp-govern"
 version = "0.1.0"
 description = "MCP server per consultar dades obertes del Govern de Catalunya: contractes, subvencions, sous, pressupostos, lobbies i transparència"
+readme = "README.md"
+license = "MIT"
 requires-python = ">=3.10"
+authors = [
+    { name = "xavimf87" },
+]
+keywords = ["mcp", "open-data", "transparency", "catalonia", "spain", "government"]
+classifiers = [
+    "Development Status :: 4 - Beta",
+    "Intended Audience :: Developers",
+    "License :: OSI Approved :: MIT License",
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3.10",
+    "Programming Language :: Python :: 3.11",
+    "Programming Language :: Python :: 3.12",
+    "Programming Language :: Python :: 3.13",
+    "Topic :: Database :: Front-Ends",
+]
 dependencies = [
     "mcp[cli]>=1.2.0",
     "httpx>=0.27.0",
 ]
 
+[project.urls]
+Homepage = "https://github.com/xavimf87/mcp-govern"
+Repository = "https://github.com/xavimf87/mcp-govern"
+Issues = "https://github.com/xavimf87/mcp-govern/issues"
+Changelog = "https://github.com/xavimf87/mcp-govern/blob/main/CHANGELOG.md"
+
 [build-system]
 requires = ["hatchling"]
 build-backend = "hatchling.build"
 
+[dependency-groups]
+dev = [
+    "mypy>=1.19.1",
+    "pytest>=9.0.2",
+    "pytest-asyncio>=1.3.0",
+    "python-semantic-release>=10.5.3",
+    "respx>=0.22.0",
+    "ruff>=0.15.7",
+]
+
 [project.scripts]
 mcp-govern = "mcp_govern.server:main"
+
+[tool.pytest.ini_options]
+asyncio_mode = "strict"
+
+[tool.ruff]
+target-version = "py310"
+line-length = 120
+
+[tool.ruff.lint]
+select = ["E", "F", "W", "I", "UP", "B", "SIM"]
+ignore = ["E501"]  # line-length in docstrings/descriptions is ok
+
+[tool.mypy]
+python_version = "3.10"
+warn_return_any = false
+warn_unused_configs = true
+ignore_missing_imports = true
+
+[tool.semantic_release]
+version_toml = ["pyproject.toml:project.version"]
+version_variables = ["src/mcp_govern/http.py:USER_AGENT"]
+branch = "main"
+commit_message = "chore(release): v{version}"
+build_command = "uv build"
+tag_format = "v{version}"
+
+[tool.semantic_release.commit_parser_options]
+allowed_tags = ["feat", "fix", "perf", "refactor", "build", "chore", "ci", "docs", "style", "test"]
+minor_tags = ["feat"]
+patch_tags = ["fix", "perf", "refactor"]
+
+[tool.semantic_release.changelog]
+default_templates.changelog_file = "CHANGELOG.md"
+
+[tool.semantic_release.remote]
+type = "github"

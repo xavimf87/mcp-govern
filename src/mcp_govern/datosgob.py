@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-import httpx
+from . import http
 
 BASE_URL = "https://datos.gob.es/apidata"
 REQUEST_TIMEOUT = 30.0
@@ -45,10 +45,7 @@ async def buscar_datasets(
         # L'API no té cerca per text lliure; cal usar l'endpoint de keyword
         url = f"{BASE_URL}/catalog/dataset/keyword/{query}.json"
 
-    async with httpx.AsyncClient(timeout=REQUEST_TIMEOUT) as client:
-        resp = await client.get(url, params=params)
-        resp.raise_for_status()
-        return resp.json()
+    return await http.fetch_json(url, params=params, timeout=REQUEST_TIMEOUT)
 
 
 async def detall_dataset(dataset_id: str) -> dict:
@@ -57,12 +54,7 @@ async def detall_dataset(dataset_id: str) -> dict:
     Args:
         dataset_id: Identificador del dataset (ex: 'l01080193-presupuestos-gastos').
     """
-    async with httpx.AsyncClient(timeout=REQUEST_TIMEOUT) as client:
-        resp = await client.get(
-            f"{BASE_URL}/catalog/dataset/{dataset_id}.json"
-        )
-        resp.raise_for_status()
-        return resp.json()
+    return await http.fetch_json(f"{BASE_URL}/catalog/dataset/{dataset_id}.json", timeout=REQUEST_TIMEOUT)
 
 
 async def buscar_distribucions(
@@ -91,7 +83,4 @@ async def buscar_distribucions(
     if dataset_id:
         url = f"{BASE_URL}/catalog/dataset/{dataset_id}/distribution.json"
 
-    async with httpx.AsyncClient(timeout=REQUEST_TIMEOUT) as client:
-        resp = await client.get(url, params=params)
-        resp.raise_for_status()
-        return resp.json()
+    return await http.fetch_json(url, params=params, timeout=REQUEST_TIMEOUT)

@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-import httpx
+from . import http
 
 BASE_URL = "https://app.bde.es/bierest/resources/srdatosapp"
 REQUEST_TIMEOUT = 30.0
@@ -17,6 +17,8 @@ SERIES_DESTACADES = {
     "tipus_interes_bce": "D_1NBAS572",
 }
 
+_GZIP_HEADER = {"Accept-Encoding": "gzip"}
+
 
 async def obtenir_ultim_valor(series: str) -> list:
     """Obté l'últim valor disponible de les sèries indicades.
@@ -24,14 +26,12 @@ async def obtenir_ultim_valor(series: str) -> list:
     Args:
         series: Codis de sèries separats per comes (ex: 'D_1NBAF472').
     """
-    async with httpx.AsyncClient(timeout=REQUEST_TIMEOUT) as client:
-        resp = await client.get(
-            f"{BASE_URL}/favoritas",
-            params={"idioma": "es", "series": series},
-            headers={"Accept-Encoding": "gzip"},
-        )
-        resp.raise_for_status()
-        return resp.json()
+    return await http.fetch_json(
+        f"{BASE_URL}/favoritas",
+        params={"idioma": "es", "series": series},
+        headers=_GZIP_HEADER,
+        timeout=REQUEST_TIMEOUT,
+    )
 
 
 async def obtenir_metadades_serie(series: str, *, rang: str = "MAX") -> list:
@@ -41,11 +41,9 @@ async def obtenir_metadades_serie(series: str, *, rang: str = "MAX") -> list:
         series: Codis de sèries separats per comes.
         rang: Rang temporal: '30M', '60M', 'MAX', o un any com '2024'.
     """
-    async with httpx.AsyncClient(timeout=REQUEST_TIMEOUT) as client:
-        resp = await client.get(
-            f"{BASE_URL}/listaSeries",
-            params={"idioma": "es", "series": series, "rango": rang},
-            headers={"Accept-Encoding": "gzip"},
-        )
-        resp.raise_for_status()
-        return resp.json()
+    return await http.fetch_json(
+        f"{BASE_URL}/listaSeries",
+        params={"idioma": "es", "series": series, "rango": rang},
+        headers=_GZIP_HEADER,
+        timeout=REQUEST_TIMEOUT,
+    )

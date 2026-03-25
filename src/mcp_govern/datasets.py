@@ -586,16 +586,17 @@ DATASETS = {
     },
     # =======================================================================
     # FISCALITAT
+    # camps buits: esquema no documentat a Socrata, cal descobrir via API
     # =======================================================================
     "impost_successions_composicio": {
         "id": "2jqq-fyu8",
         "nom": "Impost sobre successions per composició de l'herència",
-        "camps": [],
+        "camps": [],  # pendent de documentar
     },
     "impost_successions_quota": {
         "id": "xaxt-fghh",
         "nom": "Impost sobre successions - càlcul de la quota final",
-        "camps": [],
+        "camps": [],  # pendent de documentar
     },
     # =======================================================================
     # RETRIBUCIONS - CÀRRECS LOCALS
@@ -603,7 +604,7 @@ DATASETS = {
     "retrib_carrecs_locals": {
         "id": "bepu-nr6b",
         "nom": "Indicadors retributius dels càrrecs electes locals",
-        "camps": [],
+        "camps": [],  # pendent de documentar
     },
     # =======================================================================
     # PARTICIPACIÓ I OPINIÓ
@@ -611,12 +612,12 @@ DATASETS = {
     "enquestes_opinio": {
         "id": "gp4k-sxxn",
         "nom": "Microdades d'estudis d'opinió",
-        "camps": [],
+        "camps": [],  # pendent de documentar
     },
     "participacio_ciutadana": {
         "id": "62wr-uxxx",
         "nom": "Panel de participació ciutadana en polítiques públiques locals",
-        "camps": [],
+        "camps": [],  # pendent de documentar
     },
     # =======================================================================
     # PERSONAL - ACORDS I CONVENIS
@@ -624,7 +625,7 @@ DATASETS = {
     "acords_personal": {
         "id": "j98z-54w6",
         "nom": "Acords i pactes de condicions de treball del personal",
-        "camps": [],
+        "camps": [],  # pendent de documentar
     },
     # =======================================================================
     # CONTRACTACIÓ LOCAL
@@ -632,7 +633,7 @@ DATASETS = {
     "relic": {
         "id": "t3wj-j4pu",
         "nom": "Registre públic de contractes d'ens locals (RELIC)",
-        "camps": [],
+        "camps": [],  # pendent de documentar
     },
     # =======================================================================
     # SERVEIS SOCIALS
@@ -640,7 +641,7 @@ DATASETS = {
     "serveis_residencials_violencia": {
         "id": "vqd5-kgke",
         "nom": "Serveis residencials per a dones en situació de violència",
-        "camps": [],
+        "camps": [],  # pendent de documentar
     },
     # =======================================================================
     # EDUCACIÓ
@@ -648,7 +649,7 @@ DATASETS = {
     "centres_fp": {
         "id": "iyus-443e",
         "nom": "Centres de formació professional integrada de Catalunya",
-        "camps": [],
+        "camps": [],  # pendent de documentar
     },
     # =======================================================================
     # INFRAESTRUCTURES I MEDI AMBIENT
@@ -656,17 +657,17 @@ DATASETS = {
     "ports": {
         "id": "frcw-v3xi",
         "nom": "Ports de Catalunya - infraestructures portuàries",
-        "camps": [],
+        "camps": [],  # pendent de documentar
     },
     "depuradores": {
         "id": "k288-dig3",
         "nom": "Sistemes públics de sanejament i depuradores d'aigües residuals",
-        "camps": [],
+        "camps": [],  # pendent de documentar
     },
     "economia_circular": {
         "id": "5jbn-usiv",
         "nom": "Iniciatives Catalunya Circular",
-        "camps": [],
+        "camps": [],  # pendent de documentar
     },
     # =======================================================================
     # AGRICULTURA
@@ -674,7 +675,7 @@ DATASETS = {
     "explotacions_agraries": {
         "id": "uwe8-jqcu",
         "nom": "Parcel·les i cultius de les explotacions agràries (DUN)",
-        "camps": [],
+        "camps": [],  # pendent de documentar
     },
     # =======================================================================
     # NORMATIVA (DOGC)

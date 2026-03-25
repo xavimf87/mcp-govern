@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-import httpx
+from . import http
 
 BASE_URL = "https://opendata-ajuntament.barcelona.cat/data/api/action"
 REQUEST_TIMEOUT = 30.0
@@ -59,10 +59,7 @@ async def cercar_datasets(
     if query:
         params["q"] = query
 
-    async with httpx.AsyncClient(timeout=REQUEST_TIMEOUT) as client:
-        resp = await client.get(f"{BASE_URL}/package_search", params=params)
-        resp.raise_for_status()
-        return resp.json()
+    return await http.fetch_json(f"{BASE_URL}/package_search", params=params, timeout=REQUEST_TIMEOUT)
 
 
 async def detall_dataset(dataset_name: str) -> dict:
@@ -71,13 +68,11 @@ async def detall_dataset(dataset_name: str) -> dict:
     Args:
         dataset_name: Nom del dataset (ex: 'pressupost-despeses').
     """
-    async with httpx.AsyncClient(timeout=REQUEST_TIMEOUT) as client:
-        resp = await client.get(
-            f"{BASE_URL}/package_show",
-            params={"id": dataset_name},
-        )
-        resp.raise_for_status()
-        return resp.json()
+    return await http.fetch_json(
+        f"{BASE_URL}/package_show",
+        params={"id": dataset_name},
+        timeout=REQUEST_TIMEOUT,
+    )
 
 
 async def obtenir_dades(
@@ -105,10 +100,8 @@ async def obtenir_dades(
     if query:
         params["q"] = query
 
-    async with httpx.AsyncClient(timeout=REQUEST_TIMEOUT) as client:
-        resp = await client.get(
-            f"{BASE_URL}/datastore_search",
-            params=params,
-        )
-        resp.raise_for_status()
-        return resp.json()
+    return await http.fetch_json(
+        f"{BASE_URL}/datastore_search",
+        params=params,
+        timeout=REQUEST_TIMEOUT,
+    )

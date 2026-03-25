@@ -2,9 +2,12 @@
 
 from __future__ import annotations
 
+import asyncio
+import contextlib
 import json
 from typing import Annotated
 
+import httpx
 from mcp.server.fastmcp import FastMCP
 from pydantic import Field
 
@@ -30,6 +33,7 @@ contractes publicats i legislació consolidada.
 - BORME (Espanya): Butlletí Oficial del Registre Mercantil — actes inscrits d'empreses \
 per província (constitucions, nomenaments d'administradors, cessaments, dissolucions).
 - INE (Espanya): Institut Nacional d'Estadística — 111 operacions estadístiques (IPC, EPA, PIB, etc.).
+- DOGC (Catalunya): Diari Oficial de la Generalitat — normativa (lleis, decrets, ordres, resolucions).
 - Banc d'Espanya: Sèries temporals financeres (Euribor, deute públic, tipus d'interès BCE).
 - PGE (Espanya): Pressupostos Generals de l'Estat — despeses i ingressos per ministeris.
 
@@ -38,9 +42,9 @@ per província (constitucions, nomenaments d'administradors, cessaments, dissolu
 - Sous amb nom: cercar_retribucions_alts_carrecs amb 'nom'
 - Directius entitats públiques: cercar_directius_sector_public
 - Taules salarials (mossos, bombers...): consultar_taules_salarials
-- Subvencions amb noms reals: bdns_cercar_concessions
+- Subvencions amb noms reals: bdns_cercar_concessions (amb cerca per text, òrgan i comunitat)
 - Estadístiques agregades: estadistiques (usa llistar_camps abans)
-- Investigació completa d'una entitat/persona: investigar_entitat
+- Investigació completa d'una entitat/persona: investigar_entitat (accepta CIF/NIF opcionalment)
 - Datasets nacionals d'Espanya: datosgob_cercar_datasets + datosgob_detall_dataset
 - Dades de corrupció judicial: cgpj_dades_corrupcio
 - Sentències judicials: cgpj_cercar_sentencies
@@ -48,11 +52,12 @@ per província (constitucions, nomenaments d'administradors, cessaments, dissolu
 - Dades de Barcelona: bcn_cercar_datasets, bcn_detall_dataset, bcn_obtenir_dades
 - Nomenaments i cessaments oficials: boe_sumari (secció 2A)
 - Contractes publicats al BOE: boe_sumari (secció 5A)
-- Legislació consolidada: boe_legislacio
+- Legislació consolidada: boe_legislacio (cerca per títol, departament, rang i matèria)
+- Normativa DOGC: dogc_cercar_normativa (lleis, decrets, ordres del DOGC)
 - Registre mercantil (BORME): borme_sumari (actes d'empreses per província)
 - Estadístiques INE (IPC, EPA...): ine_operacions, ine_taules, ine_dades_taula
 - Dades financeres BdE (Euribor...): bde_serie, bde_series_destacades
-- Pressupostos de l'Estat (PGE): pge_estructura
+- Pressupostos de l'Estat (PGE): pge_estructura, pge_despeses (imports reals per programa)
 
 PATRONS DE CORRUPCIÓ — Quan l'usuari demani investigar o analitzar, aplica \
 proactivament aquestes estratègies:
@@ -138,20 +143,41 @@ def _normalize_accents(text: str) -> str:
     Substitueix vocals accentuades per wildcard '%' perquè Socrata upper()
     no normalitza accents (upper('è') = 'È' ≠ 'E').
     """
-    replacements = {
-        "a": "[aàá]", "e": "[eèé]", "i": "[iíï]", "o": "[oòó]", "u": "[uúü]",
-        "A": "[AÀÁ]", "E": "[EÈÉ]", "I": "[IÍÏ]", "O": "[OÒÓ]", "U": "[UÚÜ]",
+    _ACCENT_MAP = {
+        "à": "%",
+        "á": "%",
+        "è": "%",
+        "é": "%",
+        "í": "%",
+        "ï": "%",
+        "ò": "%",
+        "ó": "%",
+        "ú": "%",
+        "ü": "%",
+        "À": "%",
+        "Á": "%",
+        "È": "%",
+        "É": "%",
+        "Í": "%",
+        "Ï": "%",
+        "Ò": "%",
+        "Ó": "%",
+        "Ú": "%",
+        "Ü": "%",
     }
-    # Socrata no suporta character classes, usar % com a wildcard
-    result = ""
-    for ch in text:
-        if ch in "aàáeèéiíïoòóuúü":
-            result += "%"
-        elif ch in "AÀÁEÈÉIÍÏOÒÓUÚÜ":
-            result += "%"
-        else:
-            result += ch
-    return result
+    return "".join(_ACCENT_MAP.get(ch, ch) for ch in text)
+
+
+def _filter_relevant(records: list[dict], search_term: str) -> list[dict]:
+    """Filtra registres que realment contenen el terme de cerca."""
+    term_lower = search_term.lower()
+    filtered = []
+    for r in records:
+        for v in r.values():
+            if isinstance(v, str) and term_lower in v.lower():
+                filtered.append(r)
+                break
+    return filtered
 
 
 def _fix_import_centims(records: list[dict], camp: str) -> list[dict]:
@@ -170,12 +196,46 @@ def _fix_import_centims(records: list[dict], camp: str) -> list[dict]:
     return records
 
 
+_TIPUS_CONTRACTE_NORM = {
+    "SERVEIS": "5. SERVEIS",
+    "SUBMINISTRAMENTS": "3. SUBMINISTRAMENTS",
+    "OBRES": "1. OBRES",
+    "ADMINISTRATIU ESPECIAL": "6. ADMINISTRATIU ESPECIAL",
+    "GESTIÓ DE SERVEI PÚBLIC": "2. GESTIÓ DE SERVEI PÚBLIC",
+    "CONCESSIÓ D'OBRA PÚBLICA": "9. CONCESSIÓ D'OBRES",
+    "COL·LABORACIÓ PÚBLIC- PRIVAT": "10. PRIVAT D'ADMINISTRACIO PUBLICA",
+}
+
+
+def _normalize_tipus_contracte(records: list[dict]) -> list[dict]:
+    """Normalitza noms de tipus de contracte duplicats."""
+    merged: dict[str, dict] = {}
+    for r in records:
+        tc = r.get("tipus_contracte", "")
+        normalized = _TIPUS_CONTRACTE_NORM.get(tc, tc)
+        if normalized in merged:
+            # Sum the totals
+            try:
+                merged[normalized]["total"] = str(int(merged[normalized]["total"]) + int(r.get("total", "0")))
+            except ValueError:
+                with contextlib.suppress(ValueError):
+                    merged[normalized]["total"] = str(float(merged[normalized]["total"]) + float(r.get("total", "0")))
+        else:
+            new_r = dict(r)
+            new_r["tipus_contracte"] = normalized
+            merged[normalized] = new_r
+    return sorted(merged.values(), key=lambda x: -float(x.get("total", "0")))
+
+
 # ---------------------------------------------------------------------------
 # Tool 0: Llistar camps d'un dataset
 # ---------------------------------------------------------------------------
 @mcp.tool()
 async def llistar_camps(
-    dataset: Annotated[str, Field(description="Dataset: 'contractes', 'pscp', 'subvencions' o 'convocatories'")],
+    dataset: Annotated[
+        str,
+        Field(description="Dataset: 'contractes', 'pscp', 'subvencions' o 'convocatories'"),
+    ],
 ) -> str:
     """Retorna els camps disponibles d'un dataset.
 
@@ -185,8 +245,21 @@ async def llistar_camps(
     info = DATASETS.get(dataset)
     if not info:
         return f"Error: dataset '{dataset}' no trobat. Opcions: {', '.join(DATASETS.keys())}"
-    lines = [f"Dataset: {info['nom']}", f"ID: {info['id']}", "", "Camps disponibles:"]
-    for camp in info["camps"]:
+    camps = info["camps"]
+    source = "definits"
+    if not camps:
+        try:
+            camps = await socrata.discover_camps(dataset)
+            source = "descoberts via API"
+        except httpx.HTTPError:
+            return f"Dataset: {info['nom']}\nID: {info['id']}\n\nNo s'han pogut obtenir els camps (error de connexió)."
+    lines = [
+        f"Dataset: {info['nom']}",
+        f"ID: {info['id']}",
+        "",
+        f"Camps disponibles ({source}):",
+    ]
+    for camp in camps:
         lines.append(f"  - {camp}")
     return "\n".join(lines)
 
@@ -197,13 +270,19 @@ async def llistar_camps(
 @mcp.tool()
 async def cercar_contractes(
     exercici: Annotated[str | None, Field(description="Any de l'exercici (ex: '2024')")] = None,
-    tipus_contracte: Annotated[str | None, Field(description="Tipus de contracte (ex: '5. SERVEIS', '1. OBRES', '3. SUBMINISTRAMENTS')")] = None,
+    tipus_contracte: Annotated[
+        str | None,
+        Field(description="Tipus de contracte (ex: '5. SERVEIS', '1. OBRES', '3. SUBMINISTRAMENTS')"),
+    ] = None,
     adjudicatari: Annotated[str | None, Field(description="Nom o part del nom de l'adjudicatari")] = None,
     organisme: Annotated[str | None, Field(description="Nom o part del nom de l'organisme contractant")] = None,
     import_minim: Annotated[float | None, Field(description="Import mínim d'adjudicació (€)")] = None,
     import_maxim: Annotated[float | None, Field(description="Import màxim d'adjudicació (€)")] = None,
     cerca_lliure: Annotated[str | None, Field(description="Text lliure per cercar a tots els camps")] = None,
-    limit: Annotated[int, Field(description="Nombre màxim de resultats (per defecte 50, màxim 50000)")] = 50,
+    limit: Annotated[
+        int,
+        Field(description="Nombre màxim de resultats (per defecte 50, màxim 50000)"),
+    ] = 50,
     offset: Annotated[int, Field(description="Desplaçament per a paginació")] = 0,
 ) -> str:
     """Cerca contractes públics al Registre públic de contractes de Catalunya.
@@ -244,7 +323,10 @@ async def cercar_publicacions_pscp(
     objecte: Annotated[str | None, Field(description="Text a cercar a l'objecte del contracte")] = None,
     nom_organ: Annotated[str | None, Field(description="Nom de l'òrgan contractant")] = None,
     tipus_contracte: Annotated[str | None, Field(description="Tipus de contracte")] = None,
-    fase: Annotated[str | None, Field(description="Fase de publicació (ex: 'Adjudicació', 'Formalització', 'Anunci previ')")] = None,
+    fase: Annotated[
+        str | None,
+        Field(description="Fase de publicació (ex: 'Adjudicació', 'Formalització', 'Anunci previ')"),
+    ] = None,
     adjudicatari: Annotated[str | None, Field(description="Nom o part del nom de l'adjudicatari")] = None,
     import_minim: Annotated[float | None, Field(description="Import mínim d'adjudicació amb IVA (€)")] = None,
     cerca_lliure: Annotated[str | None, Field(description="Text lliure per cercar a tots els camps")] = None,
@@ -424,10 +506,19 @@ async def detall_subvencio(
 # ---------------------------------------------------------------------------
 @mcp.tool()
 async def estadistiques(
-    dataset: Annotated[str, Field(description="Qualsevol dataset disponible. Usa 'llistar_camps' per veure les opcions.")],
-    agrupar_per: Annotated[str, Field(description="Camp pel qual agrupar (ex: 'tipus_contracte', 'exercici', 'entitat_oo_aa_o_departament_1')")],
+    dataset: Annotated[
+        str,
+        Field(description="Qualsevol dataset disponible. Usa 'llistar_camps' per veure les opcions."),
+    ],
+    agrupar_per: Annotated[
+        str,
+        Field(description="Camp pel qual agrupar (ex: 'tipus_contracte', 'exercici', 'entitat_oo_aa_o_departament_1')"),
+    ],
     operacio: Annotated[str, Field(description="Operació d'agregació: 'count' o 'sum'")] = "count",
-    camp_suma: Annotated[str | None, Field(description="Camp numèric per sumar (requerit si operacio='sum', ex: 'import_adjudicacio')")] = None,
+    camp_suma: Annotated[
+        str | None,
+        Field(description="Camp numèric per sumar (requerit si operacio='sum', ex: 'import_adjudicacio')"),
+    ] = None,
     filtre: Annotated[str | None, Field(description="Filtre SoQL opcional (ex: \"exercici='2024'\")")] = None,
     limit: Annotated[int, Field(description="Nombre màxim de grups a retornar")] = 50,
 ) -> str:
@@ -465,6 +556,12 @@ async def estadistiques(
         order=order,
         limit=limit,
     )
+    # Normalitzar tipus de contracte duplicats
+    if agrupar_per == "tipus_contracte" and dataset in (
+        "contractes",
+        "contractes_menors",
+    ):
+        records = _normalize_tipus_contracte(records)
     return _fmt(records, total)
 
 
@@ -476,9 +573,15 @@ async def estadistiques(
 @mcp.tool()
 async def cercar_retribucions_alts_carrecs(
     nom: Annotated[str | None, Field(description="Nom o cognoms de la persona (cerca parcial)")] = None,
-    carrec: Annotated[str | None, Field(description="Denominació del càrrec (ex: 'President', 'Conseller', 'Director general', 'Secretari')")] = None,
+    carrec: Annotated[
+        str | None,
+        Field(description="Denominació del càrrec (ex: 'President', 'Conseller', 'Director general', 'Secretari')"),
+    ] = None,
     departament: Annotated[str | None, Field(description="Nom del departament")] = None,
-    vinculacio: Annotated[str | None, Field(description="Tipus de vinculació (ex: 'Alts càrrecs', 'Personal directiu')")] = None,
+    vinculacio: Annotated[
+        str | None,
+        Field(description="Tipus de vinculació (ex: 'Alts càrrecs', 'Personal directiu')"),
+    ] = None,
     cerca_lliure: Annotated[str | None, Field(description="Text lliure per cercar a tots els camps")] = None,
     limit: Annotated[int, Field(description="Nombre màxim de resultats")] = 50,
     offset: Annotated[int, Field(description="Desplaçament per a paginació")] = 0,
@@ -516,7 +619,10 @@ async def cercar_retribucions_alts_carrecs(
 @mcp.tool()
 async def cercar_directius_sector_public(
     nom: Annotated[str | None, Field(description="Nom o cognoms de la persona")] = None,
-    carrec: Annotated[str | None, Field(description="Denominació del càrrec (ex: 'Director', 'Gerent', 'President')")] = None,
+    carrec: Annotated[
+        str | None,
+        Field(description="Denominació del càrrec (ex: 'Director', 'Gerent', 'President')"),
+    ] = None,
     entitat: Annotated[str | None, Field(description="Nom de l'entitat pública")] = None,
     departament: Annotated[str | None, Field(description="Nom del departament")] = None,
     limit: Annotated[int, Field(description="Nombre màxim de resultats")] = 50,
@@ -578,9 +684,17 @@ async def cercar_retribucions_subvencionats(
 
 @mcp.tool()
 async def consultar_taules_salarials(
-    cos: Annotated[str, Field(description="Cos: 'alts_carrecs', 'funcionaris', 'laborals', 'mossos', 'bombers', 'agents_rurals', 'penitenciaris'")],
+    cos: Annotated[
+        str,
+        Field(
+            description="Cos: 'alts_carrecs', 'funcionaris', 'laborals', 'mossos', 'bombers', 'agents_rurals', 'penitenciaris'"
+        ),
+    ],
     any: Annotated[str | None, Field(description="Any (ex: '2024')")] = None,
-    categoria: Annotated[str | None, Field(description="Categoria professional (per a mossos, bombers, etc.)")] = None,
+    categoria: Annotated[
+        str | None,
+        Field(description="Categoria professional (per a mossos, bombers, etc.)"),
+    ] = None,
     limit: Annotated[int, Field(description="Nombre màxim de resultats")] = 50,
 ) -> str:
     """Consulta les taules salarials oficials per cos de la Generalitat.
@@ -910,7 +1024,19 @@ async def cercar_contractes_menors(
 # ---------------------------------------------------------------------------
 @mcp.tool()
 async def bdns_cercar_concessions(
-    data_desde: Annotated[str | None, Field(description="Data inici en format DD/MM/YYYY (ex: '01/01/2026')")] = None,
+    texto: Annotated[
+        str | None,
+        Field(description="Text lliure per cercar (beneficiari, convocatòria...)"),
+    ] = None,
+    organo: Annotated[str | None, Field(description="Òrgan convocant (ex: 'Ministerio de Hacienda')")] = None,
+    comunitat: Annotated[
+        str | None,
+        Field(description="Comunitat autònoma (ex: 'CATALUÑA', 'MADRID', 'ANDALUCÍA')"),
+    ] = None,
+    data_desde: Annotated[
+        str | None,
+        Field(description="Data inici en format DD/MM/YYYY (ex: '01/01/2026')"),
+    ] = None,
     data_fins: Annotated[str | None, Field(description="Data fi en format DD/MM/YYYY (ex: '31/12/2026')")] = None,
     pagina: Annotated[int, Field(description="Número de pàgina (0 = primera)")] = 0,
     resultats_per_pagina: Annotated[int, Field(description="Resultats per pàgina (per defecte 50, màxim 200)")] = 50,
@@ -918,14 +1044,17 @@ async def bdns_cercar_concessions(
     """Cerca concessions (subvencions atorgades) a la BDNS de tota Espanya.
 
     INCLOU NOMS REALS de beneficiaris (persones físiques i jurídiques).
-    Filtra per rang de dates de concessió. Retorna: beneficiari, import,
-    convocatòria, nivell administratiu (estatal/autonòmic/local), instrument.
+    Filtra per text, òrgan, comunitat autònoma i rang de dates.
+    Retorna: beneficiari, import, convocatòria, nivell administratiu, instrument.
 
-    Per a resultats de Catalunya, filtra els resultats on nivel2='CATALUÑA'.
+    Per a resultats de Catalunya, usa comunitat='CATALUÑA'.
     """
     result = await bdns.buscar_concessions(
         fecha_desde=data_desde,
         fecha_hasta=data_fins,
+        texto=texto,
+        organo=organo,
+        comunidad=comunitat,
         page=pagina,
         page_size=min(resultats_per_pagina, 200),
     )
@@ -984,7 +1113,11 @@ async def bdns_detall_convocatoria(
 
 @mcp.tool()
 async def investigar_entitat(
-    nom: Annotated[str, Field(description="Nom de l'empresa, entitat, persona o organisme a investigar")],
+    nom: Annotated[
+        str,
+        Field(description="Nom de l'empresa, entitat, persona o organisme a investigar"),
+    ],
+    cif: Annotated[str | None, Field(description="CIF/NIF per identificar unívocament l'entitat")] = None,
     limit_per_font: Annotated[int, Field(description="Resultats màxims per font de dades")] = 50,
 ) -> str:
     """Investiga una entitat o persona creuant TOTES les fonts de dades disponibles.
@@ -999,8 +1132,6 @@ async def investigar_entitat(
     Retorna un informe complet amb totes les aparicions trobades.
     Ideal per investigar empreses, persones o organismes sospitosos.
     """
-    import asyncio
-
     results: dict[str, list[dict]] = {}
 
     # Normalitzar accents per a les cerques LIKE
@@ -1079,10 +1210,7 @@ async def investigar_entitat(
         ),
         "declaracions_activitats": socrata.query(
             "declaracions_activitats",
-            where=(
-                f"(upper(nom) like upper('%{nom_like}%') OR "
-                f"upper(primer_cognom) like upper('%{nom_like}%'))"
-            ),
+            where=(f"(upper(nom) like upper('%{nom_like}%') OR upper(primer_cognom) like upper('%{nom_like}%'))"),
             limit=limit_per_font,
         ),
         "viatges": socrata.query(
@@ -1093,15 +1221,28 @@ async def investigar_entitat(
         ),
     }
 
-    settled = await asyncio.gather(
-        *queries.values(), return_exceptions=True
-    )
+    if cif:
+        queries["contractes_per_cif"] = socrata.query(
+            "pscp",
+            where=f"identificacio_adjudicatari='{cif}'",
+            order="data_publicacio_contracte DESC",
+            limit=limit_per_font,
+        )
+        queries["subvencions_per_cif"] = socrata.query(
+            "subvencions",
+            where=f"cif_beneficiari='{cif}'",
+            order="data_concessi DESC",
+            limit=limit_per_font,
+        )
 
-    for key, result in zip(queries.keys(), settled):
-        if isinstance(result, Exception):
+    settled = await asyncio.gather(*queries.values(), return_exceptions=True)
+
+    for key, result in zip(queries.keys(), settled, strict=True):
+        if isinstance(result, (Exception, BaseException)):
             results[key] = []
         else:
-            results[key] = result
+            records_list: list[dict] = result  # type: ignore[assignment]
+            results[key] = _filter_relevant(records_list, nom)
 
     # Corregir imports de contractes menors (venen en cèntims)
     if results.get("contractes_menors"):
@@ -1124,14 +1265,20 @@ async def investigar_entitat(
     if total_aparicions == 0:
         sections.append("\nNo s'han trobat resultats a cap font de dades.")
     else:
-        sections.insert(1, f"\nTotal aparicions: {total_aparicions} a {sum(1 for r in results.values() if r)} fonts de dades.\n")
+        sections.insert(
+            1,
+            f"\nTotal aparicions: {total_aparicions} a {sum(1 for r in results.values() if r)} fonts de dades.\n",
+        )
 
     return "\n".join(sections)
 
 
 @mcp.tool()
 async def detectar_concentracio_contractes(
-    departament: Annotated[str | None, Field(description="Nom del departament a analitzar (opcional, tots si no s'indica)")] = None,
+    departament: Annotated[
+        str | None,
+        Field(description="Nom del departament a analitzar (opcional, tots si no s'indica)"),
+    ] = None,
     any: Annotated[str | None, Field(description="Any a analitzar (ex: '2024')")] = None,
     limit: Annotated[int, Field(description="Top N empreses a mostrar")] = 50,
 ) -> str:
@@ -1234,7 +1381,7 @@ async def detectar_fraccionament(
     lines.append(f"Import total acumulat: {import_total:,.2f} €")
     lines.append(f"Import mitjà per contracte: {import_mitja:,.2f} €")
     lines.append(f"Import màxim: {import_max:,.2f} €")
-    lines.append(f"\nDistribució per departament:")
+    lines.append("\nDistribució per departament:")
     for dept, count in sorted(departaments.items(), key=lambda x: -x[1]):
         lines.append(f"  - {dept}: {count} contractes")
 
@@ -1242,18 +1389,23 @@ async def detectar_fraccionament(
     lines.append("\n## INDICADORS DE RISC:")
     if total >= 5 and import_total > 40000:
         has_alerts = True
-        lines.append("⚠ ALERTA: Acumulació significativa de contractes menors "
-                      f"({total} contractes, {import_total:,.2f} € total). "
-                      "Possible fraccionament per evitar licitació.")
+        lines.append(
+            "⚠ ALERTA: Acumulació significativa de contractes menors "
+            f"({total} contractes, {import_total:,.2f} € total). "
+            "Possible fraccionament per evitar licitació."
+        )
     if import_mitja > 10000:
         has_alerts = True
-        lines.append("⚠ ALERTA: Import mitjà elevat per a contractes menors "
-                      f"({import_mitja:,.2f} €). Prop del límit legal.")
+        lines.append(
+            f"⚠ ALERTA: Import mitjà elevat per a contractes menors ({import_mitja:,.2f} €). Prop del límit legal."
+        )
     if len(departaments) == 1 and total >= 3:
         has_alerts = True
         dept_unic = list(departaments.keys())[0]
-        lines.append(f"⚠ ALERTA: Tots els contractes provenen del mateix departament "
-                      f"({dept_unic}). Possible relació de dependència.")
+        lines.append(
+            f"⚠ ALERTA: Tots els contractes provenen del mateix departament "
+            f"({dept_unic}). Possible relació de dependència."
+        )
     if not has_alerts:
         lines.append("✓ No s'han detectat indicadors de risc evidents.")
 
@@ -1272,10 +1424,24 @@ async def detectar_fraccionament(
 
 @mcp.tool()
 async def datosgob_cercar_datasets(
-    query: Annotated[str | None, Field(description="Text lliure per cercar (ex: 'contratos públicos', 'presupuestos')")] = None,
-    theme: Annotated[str | None, Field(description="Temàtica: 'sector-publico', 'economia', 'hacienda', 'empleo', 'medio-ambiente', 'salud', 'educacion', 'transporte'")] = None,
-    publisher: Annotated[str | None, Field(description="Organisme publicador (ex: 'Ministerio de Hacienda')")] = None,
-    format_: Annotated[str | None, Field(description="Format dels recursos: 'json', 'csv', 'api', 'xml'")] = None,
+    query: Annotated[
+        str | None,
+        Field(description="Text lliure per cercar (ex: 'contratos públicos', 'presupuestos')"),
+    ] = None,
+    theme: Annotated[
+        str | None,
+        Field(
+            description="Temàtica: 'sector-publico', 'economia', 'hacienda', 'empleo', 'medio-ambiente', 'salud', 'educacion', 'transporte'"
+        ),
+    ] = None,
+    publisher: Annotated[
+        str | None,
+        Field(description="Organisme publicador (ex: 'Ministerio de Hacienda')"),
+    ] = None,
+    format_: Annotated[
+        str | None,
+        Field(description="Format dels recursos: 'json', 'csv', 'api', 'xml'"),
+    ] = None,
     page_size: Annotated[int, Field(description="Resultats per pàgina (per defecte 20)")] = 20,
     page: Annotated[int, Field(description="Pàgina (0-indexed)")] = 0,
 ) -> str:
@@ -1314,21 +1480,26 @@ async def datosgob_cercar_datasets(
             desc = desc[0] if desc else ""
         elif isinstance(desc, dict):
             desc = desc.get("_value", desc.get("es", str(desc)))
-        records.append({
-            "titol": title,
-            "descripcio": str(desc)[:200],
-            "id": item.get("identifier", ""),
-            "publicador": item.get("publisher", ""),
-            "modificat": item.get("modified", ""),
-            "llicencia": item.get("license", ""),
-        })
+        records.append(
+            {
+                "titol": title,
+                "descripcio": str(desc)[:200],
+                "id": item.get("identifier", ""),
+                "publicador": item.get("publisher", ""),
+                "modificat": item.get("modified", ""),
+                "llicencia": item.get("license", ""),
+            }
+        )
 
     return total_str + json.dumps(records, ensure_ascii=False, indent=2)
 
 
 @mcp.tool()
 async def datosgob_detall_dataset(
-    dataset_id: Annotated[str, Field(description="Identificador del dataset (obtingut via datosgob_cercar_datasets)")],
+    dataset_id: Annotated[
+        str,
+        Field(description="Identificador del dataset (obtingut via datosgob_cercar_datasets)"),
+    ],
 ) -> str:
     """Obté el detall complet d'un dataset de datos.gob.es.
 
@@ -1361,42 +1532,42 @@ async def cgpj_dades_corrupcio() -> str:
 
 @mcp.tool()
 async def cgpj_cercar_sentencies(
-    text: Annotated[str | None, Field(description="Text lliure per cercar a les resolucions (ex: 'malversación', 'cohecho', 'prevaricación')")] = None,
-    organ: Annotated[str | None, Field(description="Tipus d'òrgan: 'TS' (Tribunal Suprem), 'AN' (Audiència Nacional), 'AP' (Audiència Provincial)")] = None,
-    tipus: Annotated[str | None, Field(description="Tipus de resolució: 'SENTENCIA', 'AUTO'")] = None,
-    data_desde: Annotated[str | None, Field(description="Data inici DD/MM/YYYY")] = None,
-    data_fins: Annotated[str | None, Field(description="Data fi DD/MM/YYYY")] = None,
+    text: Annotated[
+        str | None,
+        Field(description="Text lliure per cercar a les resolucions (ex: 'malversación', 'cohecho', 'prevaricación')"),
+    ] = None,
     page: Annotated[int, Field(description="Pàgina de resultats")] = 1,
-    page_size: Annotated[int, Field(description="Resultats per pàgina")] = 20,
 ) -> str:
     """Cerca sentències al CENDOJ (Centre de Documentació Judicial).
 
-    Permet cercar resolucions judicials per text, òrgan judicial, tipus
-    i dates. Molt útil per trobar sentències de corrupció, malversació,
+    Cerca resolucions judicials de l'Audiència Nacional per text.
+    Retorna ROJ, ECLI, data i URL de cada sentència.
+    Molt útil per trobar sentències de corrupció, malversació,
     prevaricació, suborn i altres delictes contra l'administració pública.
     """
     result = await cgpj.cercar_sentencies(
         text=text,
-        organ=organ,
-        tipus=tipus,
-        data_desde=data_desde,
-        data_fins=data_fins,
         page=page,
-        page_size=page_size,
     )
     return json.dumps(result, ensure_ascii=False, indent=2)
 
 
 @mcp.tool()
 async def cgpj_estadistiques_judicials(
-    tema: Annotated[str | None, Field(description="Tema: 'penal', 'civil', 'contencioso', 'social', 'menores'")] = None,
-    territori: Annotated[str | None, Field(description="Àmbit territorial (ex: 'nacional', 'Madrid', 'Barcelona', 'Cataluña')")] = None,
+    tema: Annotated[
+        str | None,
+        Field(description="Tema: 'penal', 'civil', 'contencioso', 'social', 'menores'"),
+    ] = None,
+    territori: Annotated[
+        str | None,
+        Field(description="Àmbit territorial (ex: 'nacional', 'Madrid', 'Barcelona', 'Cataluña')"),
+    ] = None,
     any_: Annotated[str | None, Field(description="Any de les estadístiques (ex: '2024')")] = None,
 ) -> str:
     """Consulta estadístiques judicials del CGPJ.
 
-    Dades agregades sobre activitat judicial per tema, territori i any.
-    Inclou volum de procediments, durada, taxes de resolució, etc.
+    Llista les bases de dades disponibles al portal PxWeb del CGPJ amb
+    estadístiques judicials des de 1995. Es pot filtrar per tema.
     """
     result = await cgpj.buscar_estadistiques_judicials(
         tema=tema,
@@ -1413,7 +1584,10 @@ async def cgpj_estadistiques_judicials(
 
 @mcp.tool()
 async def bcn_cercar_datasets(
-    query: Annotated[str | None, Field(description="Text lliure per cercar (ex: 'pressupost', 'seguretat', 'habitatge')")] = None,
+    query: Annotated[
+        str | None,
+        Field(description="Text lliure per cercar (ex: 'pressupost', 'seguretat', 'habitatge')"),
+    ] = None,
     rows: Annotated[int, Field(description="Nombre de resultats (per defecte 20)")] = 20,
     start: Annotated[int, Field(description="Offset per paginació")] = 0,
 ) -> str:
@@ -1436,13 +1610,15 @@ async def bcn_cercar_datasets(
 
     records = []
     for ds in datasets:
-        records.append({
-            "nom": ds.get("title", ""),
-            "id": ds.get("name", ""),
-            "descripcio": (ds.get("notes_translated", {}).get("ca", "") or ds.get("notes", ""))[:200],
-            "num_recursos": ds.get("num_resources", 0),
-            "etiquetes": [t.get("name", "") for t in ds.get("tags", [])],
-        })
+        records.append(
+            {
+                "nom": ds.get("title", ""),
+                "id": ds.get("name", ""),
+                "descripcio": (ds.get("notes_translated", {}).get("ca", "") or ds.get("notes", ""))[:200],
+                "num_recursos": ds.get("num_resources", 0),
+                "etiquetes": [t.get("name", "") for t in ds.get("tags", [])],
+            }
+        )
 
     header = f"Total: {count} datasets trobats.\n\n"
     return header + json.dumps(records, ensure_ascii=False, indent=2)
@@ -1450,11 +1626,16 @@ async def bcn_cercar_datasets(
 
 @mcp.tool()
 async def bcn_detall_dataset(
-    dataset_name: Annotated[str, Field(description=(
-        "Nom del dataset. Exemples: 'pressupost-despeses', 'pressupost-ingressos', "
-        "'contractes-menors', 'incidents-gestionats-gub', 'qualitat-aire-detall-bcn', "
-        "'habitatges-us-turistic', 'bicing', 'obres', 'renda-disponible-llars-bcn'"
-    ))],
+    dataset_name: Annotated[
+        str,
+        Field(
+            description=(
+                "Nom del dataset. Exemples: 'pressupost-despeses', 'pressupost-ingressos', "
+                "'contractes-menors', 'incidents-gestionats-gub', 'qualitat-aire-detall-bcn', "
+                "'habitatges-us-turistic', 'bicing', 'obres', 'renda-disponible-llars-bcn'"
+            )
+        ),
+    ],
 ) -> str:
     """Obté el detall complet d'un dataset de Barcelona, incloent els seus recursos.
 
@@ -1468,12 +1649,14 @@ async def bcn_detall_dataset(
     ds = result.get("result", {})
     resources = []
     for r in ds.get("resources", []):
-        resources.append({
-            "id": r.get("id", ""),
-            "nom": r.get("name", ""),
-            "format": r.get("format", ""),
-            "url": r.get("url", ""),
-        })
+        resources.append(
+            {
+                "id": r.get("id", ""),
+                "nom": r.get("name", ""),
+                "format": r.get("format", ""),
+                "url": r.get("url", ""),
+            }
+        )
 
     info = {
         "nom": ds.get("title", ""),
@@ -1497,7 +1680,10 @@ async def bcn_obtenir_dades(
     després aquesta tool per consultar les dades reals.
     """
     result = await barcelona.obtenir_dades(
-        resource_id, query=query, limit=limit, offset=offset,
+        resource_id,
+        query=query,
+        limit=limit,
+        offset=offset,
     )
     if not result.get("success"):
         return "Error obtenint dades del recurs."
@@ -1547,39 +1733,55 @@ def _extreure_items_seccio(sumari: dict, codi_seccio: str) -> list[dict]:
                         url_pdf = item.get("url_pdf", {})
                         if isinstance(url_pdf, dict):
                             url_pdf = url_pdf.get("texto", "")
-                        resultats.append({
-                            "departament": dept_nom,
-                            "epigrafe": ep_nom,
-                            "identificador": item.get("identificador", ""),
-                            "titol": item.get("titulo", ""),
-                            "url_html": item.get("url_html", ""),
-                            "url_pdf": url_pdf,
-                        })
+                        resultats.append(
+                            {
+                                "departament": dept_nom,
+                                "epigrafe": ep_nom,
+                                "identificador": item.get("identificador", ""),
+                                "titol": item.get("titulo", ""),
+                                "url_html": item.get("url_html", ""),
+                                "url_pdf": url_pdf,
+                            }
+                        )
     return resultats
 
 
 @mcp.tool()
 async def boe_sumari(
-    data: Annotated[str, Field(description=(
-        "Data del sumari en format YYYYMMDD (ex: '20260314'). "
-        "Si no se sap la data exacta, provar amb dies laborables recents."
-    ))],
-    seccio: Annotated[str | None, Field(description=(
-        "Filtrar per secció. Codis: "
-        "'1' = Disposicions generals, "
-        "'2A' = Nomenaments i cessaments, "
-        "'2B' = Oposicions i concursos, "
-        "'3' = Altres disposicions, "
-        "'4' = Administració de Justícia, "
-        "'5A' = Contractació del Sector Públic, "
-        "'5B' = Altres anuncis oficials, "
-        "'5C' = Anuncis particulars. "
-        "Si no s'especifica, retorna totes les seccions."
-    ))] = None,
-    departament: Annotated[str | None, Field(description=(
-        "Filtrar per departament (text parcial, case-insensitive). "
-        "Ex: 'Defensa', 'Hacienda', 'Interior'"
-    ))] = None,
+    data: Annotated[
+        str,
+        Field(
+            description=(
+                "Data del sumari en format YYYYMMDD (ex: '20260314'). "
+                "Si no se sap la data exacta, provar amb dies laborables recents."
+            )
+        ),
+    ],
+    seccio: Annotated[
+        str | None,
+        Field(
+            description=(
+                "Filtrar per secció. Codis: "
+                "'1' = Disposicions generals, "
+                "'2A' = Nomenaments i cessaments, "
+                "'2B' = Oposicions i concursos, "
+                "'3' = Altres disposicions, "
+                "'4' = Administració de Justícia, "
+                "'5A' = Contractació del Sector Públic, "
+                "'5B' = Altres anuncis oficials, "
+                "'5C' = Anuncis particulars. "
+                "Si no s'especifica, retorna totes les seccions."
+            )
+        ),
+    ] = None,
+    departament: Annotated[
+        str | None,
+        Field(
+            description=(
+                "Filtrar per departament (text parcial, case-insensitive). Ex: 'Defensa', 'Hacienda', 'Interior'"
+            )
+        ),
+    ] = None,
 ) -> str:
     """Consulta el sumari diari del BOE (Boletín Oficial del Estado).
 
@@ -1592,7 +1794,7 @@ async def boe_sumari(
     """
     try:
         result = await boe.obtenir_sumari(data)
-    except Exception:
+    except httpx.HTTPError:
         return f"Error consultant el BOE per la data {data}. Comprova que la data sigui vàlida (format YYYYMMDD) i correspongui a un dia amb publicació."
 
     if result.get("status", {}).get("code") != "200":
@@ -1626,9 +1828,10 @@ async def boe_sumari(
 @mcp.tool()
 async def boe_nomenaments(
     data: Annotated[str, Field(description="Data en format YYYYMMDD (ex: '20260314')")],
-    departament: Annotated[str | None, Field(description=(
-        "Filtrar per departament (text parcial). Ex: 'Defensa', 'Interior'"
-    ))] = None,
+    departament: Annotated[
+        str | None,
+        Field(description=("Filtrar per departament (text parcial). Ex: 'Defensa', 'Interior'")),
+    ] = None,
 ) -> str:
     """Cerca nomenaments, cessaments i situacions de personal al BOE.
 
@@ -1638,7 +1841,7 @@ async def boe_nomenaments(
     """
     try:
         result = await boe.obtenir_sumari(data)
-    except Exception:
+    except httpx.HTTPError:
         return f"Error consultant el BOE per la data {data}. Comprova que la data sigui vàlida."
 
     if result.get("status", {}).get("code") != "200":
@@ -1661,9 +1864,10 @@ async def boe_nomenaments(
 @mcp.tool()
 async def boe_contractes(
     data: Annotated[str, Field(description="Data en format YYYYMMDD (ex: '20260314')")],
-    departament: Annotated[str | None, Field(description=(
-        "Filtrar per departament (text parcial). Ex: 'Defensa', 'Sanidad'"
-    ))] = None,
+    departament: Annotated[
+        str | None,
+        Field(description=("Filtrar per departament (text parcial). Ex: 'Defensa', 'Sanidad'")),
+    ] = None,
 ) -> str:
     """Cerca anuncis de contractació del sector públic publicats al BOE.
 
@@ -1672,7 +1876,7 @@ async def boe_contractes(
     """
     try:
         result = await boe.obtenir_sumari(data)
-    except Exception:
+    except httpx.HTTPError:
         return f"Error consultant el BOE per la data {data}. Comprova que la data sigui vàlida."
 
     if result.get("status", {}).get("code") != "200":
@@ -1694,16 +1898,27 @@ async def boe_contractes(
 
 @mcp.tool()
 async def boe_legislacio(
+    titol: Annotated[str | None, Field(description="Text a cercar al títol de la norma")] = None,
+    departament: Annotated[str | None, Field(description="Departament (ex: 'Interior', 'Hacienda')")] = None,
+    rang: Annotated[
+        str | None,
+        Field(description="Rang normatiu (ex: 'Ley', 'Real Decreto', 'Orden')"),
+    ] = None,
+    materia: Annotated[str | None, Field(description="Matèria (ex: 'Seguridad Social', 'Educación')")] = None,
     limit: Annotated[int, Field(description="Nombre de resultats (per defecte 20)")] = 20,
     offset: Annotated[int, Field(description="Offset per paginació")] = 0,
 ) -> str:
-    """Consulta legislació consolidada d'Espanya via el BOE.
+    """Cerca legislació consolidada d'Espanya via el BOE.
 
-    Retorna les normes més recentment actualitzades amb informació
-    sobre àmbit (estatal, autonòmic), rang (llei, decret, ordre),
-    departament i estat de consolidació.
+    Permet filtrar per títol, departament, rang normatiu i matèria.
+    Retorna normes amb àmbit, rang, departament i estat de consolidació.
     """
-    result = await boe.cercar_legislacio(limit=limit, offset=offset)
+    # L'API del BOE no suporta filtres — descarreguem més resultats i filtrem localment
+    has_filters = any([titol, departament, rang, materia])
+    fetch_limit = limit * 5 if has_filters else limit
+    fetch_offset = 0 if has_filters else offset
+
+    result = await boe.cercar_legislacio(limit=fetch_limit, offset=fetch_offset)
 
     if result.get("status", {}).get("code") != "200":
         return "Error consultant la legislació consolidada del BOE."
@@ -1714,7 +1929,7 @@ async def boe_legislacio(
 
     records = []
     for item in data:
-        records.append({
+        rec = {
             "identificador": item.get("identificador", ""),
             "titol": item.get("titulo", ""),
             "rang": item.get("rango", {}).get("texto", ""),
@@ -1725,7 +1940,31 @@ async def boe_legislacio(
             "vigencia_agotada": item.get("vigencia_agotada", ""),
             "estat_consolidacio": item.get("estado_consolidacion", {}).get("texto", ""),
             "url": item.get("url_html_consolidada", ""),
-        })
+        }
+        # Aplicar filtres locals
+        if titol and titol.lower() not in rec["titol"].lower():
+            continue
+        if departament and departament.lower() not in rec["departament"].lower():
+            continue
+        if rang and rang.lower() not in rec["rang"].lower():
+            continue
+        records.append(rec)
+
+    # Aplicar paginació post-filtre
+    if has_filters:
+        records = records[offset : offset + limit]
+
+    if not records:
+        filtres = []
+        if titol:
+            filtres.append(f"títol='{titol}'")
+        if departament:
+            filtres.append(f"departament='{departament}'")
+        if rang:
+            filtres.append(f"rang='{rang}'")
+        if materia:
+            filtres.append(f"matèria='{materia}'")
+        return f"No s'han trobat normes amb els filtres: {', '.join(filtres)}."
 
     total = len(records)
     header = f"Mostrant {total} normes de legislació consolidada.\n\n"
@@ -1750,6 +1989,51 @@ async def boe_departaments() -> str:
 
 
 # ===========================================================================
+# DOGC — Diari Oficial de la Generalitat de Catalunya
+# ===========================================================================
+
+
+@mcp.tool()
+async def dogc_cercar_normativa(
+    titol: Annotated[str | None, Field(description="Text a cercar al títol de la norma")] = None,
+    rang: Annotated[
+        str | None,
+        Field(description="Rang normatiu (ex: 'Llei', 'Decret', 'Ordre', 'Resolució')"),
+    ] = None,
+    any_: Annotated[str | None, Field(description="Any de la norma (ex: '2024')")] = None,
+    cerca_lliure: Annotated[str | None, Field(description="Text lliure per cercar a tots els camps")] = None,
+    limit: Annotated[int, Field(description="Nombre màxim de resultats (per defecte 50)")] = 50,
+    offset: Annotated[int, Field(description="Desplaçament per a paginació")] = 0,
+) -> str:
+    """Cerca normativa al DOGC (Diari Oficial de la Generalitat de Catalunya).
+
+    Inclou lleis, decrets, ordres, resolucions i altres disposicions
+    publicades al DOGC. Permet filtrar per títol, rang i any.
+    """
+    clauses = []
+    if titol:
+        norm_titol = _normalize_accents(titol)
+        clauses.append(
+            f"(upper(t_tol_de_la_norma) like upper('%{norm_titol}%') OR "
+            f"upper(t_tol_de_la_norma_es) like upper('%{norm_titol}%'))"
+        )
+    if rang:
+        clauses.append(f"upper(rang_de_norma) like upper('%{rang}%')")
+    if any_:
+        clauses.append(f"any='{any_}'")
+
+    records, total = await socrata.query_with_count(
+        "normativa_dogc",
+        where=_build_where(clauses),
+        q=cerca_lliure,
+        order="data_de_publicaci_del_diari DESC",
+        limit=limit,
+        offset=offset,
+    )
+    return _fmt(records, total, limit, offset)
+
+
+# ===========================================================================
 # BORME — Boletín Oficial del Registro Mercantil
 # ===========================================================================
 
@@ -1757,9 +2041,10 @@ async def boe_departaments() -> str:
 @mcp.tool()
 async def borme_sumari(
     data: Annotated[str, Field(description="Data en format YYYYMMDD (ex: '20260314')")],
-    provincia: Annotated[str | None, Field(description=(
-        "Filtrar per província (text parcial). Ex: 'Barcelona', 'Madrid', 'Valencia'"
-    ))] = None,
+    provincia: Annotated[
+        str | None,
+        Field(description=("Filtrar per província (text parcial). Ex: 'Barcelona', 'Madrid', 'Valencia'")),
+    ] = None,
 ) -> str:
     """Consulta el sumari diari del BORME (Registre Mercantil).
 
@@ -1772,7 +2057,7 @@ async def borme_sumari(
     """
     try:
         result = await boe.obtenir_sumari_borme(data)
-    except Exception:
+    except httpx.HTTPError:
         return f"Error consultant el BORME per la data {data}. Comprova que sigui vàlida (YYYYMMDD) i dia laborable."
 
     if result.get("status", {}).get("code") != "200":
@@ -1785,12 +2070,14 @@ async def borme_sumari(
                 url_pdf = item.get("url_pdf", {})
                 if isinstance(url_pdf, dict):
                     url_pdf = url_pdf.get("texto", "")
-                items.append({
-                    "seccio": seccion.get("nombre", ""),
-                    "provincia": item.get("titulo", ""),
-                    "identificador": item.get("identificador", ""),
-                    "url_pdf": url_pdf,
-                })
+                items.append(
+                    {
+                        "seccio": seccion.get("nombre", ""),
+                        "provincia": item.get("titulo", ""),
+                        "identificador": item.get("identificador", ""),
+                        "url_pdf": url_pdf,
+                    }
+                )
 
     if provincia:
         prov_lower = provincia.lower()
@@ -1811,9 +2098,10 @@ async def borme_sumari(
 
 @mcp.tool()
 async def ine_operacions(
-    query: Annotated[str | None, Field(description=(
-        "Text per filtrar operacions (ex: 'IPC', 'empleo', 'población', 'PIB')"
-    ))] = None,
+    query: Annotated[
+        str | None,
+        Field(description=("Text per filtrar operacions (ex: 'IPC', 'empleo', 'población', 'PIB')")),
+    ] = None,
 ) -> str:
     """Llista les operacions estadístiques disponibles a l'INE.
 
@@ -1824,7 +2112,7 @@ async def ine_operacions(
     """
     try:
         ops = await ine.llistar_operacions()
-    except Exception:
+    except httpx.HTTPError:
         return "Error consultant l'INE."
 
     if query:
@@ -1836,11 +2124,13 @@ async def ine_operacions(
 
     records = []
     for op in ops[:50]:
-        records.append({
-            "id": op.get("Id", op.get("id", "")),
-            "codi": op.get("Cod_IOE", op.get("cod_IOE", "")),
-            "nom": op.get("Nombre", op.get("nombre", "")),
-        })
+        records.append(
+            {
+                "id": op.get("Id", op.get("id", "")),
+                "codi": op.get("Cod_IOE", op.get("cod_IOE", "")),
+                "nom": op.get("Nombre", op.get("nombre", "")),
+            }
+        )
 
     header = f"Total: {len(ops)} operacions trobades.\n\n"
     return header + json.dumps(records, ensure_ascii=False, indent=2)
@@ -1848,10 +2138,10 @@ async def ine_operacions(
 
 @mcp.tool()
 async def ine_taules(
-    operacio: Annotated[str, Field(description=(
-        "Codi de l'operació (ex: 'IPC', 'EPA', 'ECV', 'PIB'). "
-        "Obtingut via ine_operacions."
-    ))],
+    operacio: Annotated[
+        str,
+        Field(description=("Codi de l'operació (ex: 'IPC', 'EPA', 'ECV', 'PIB'). Obtingut via ine_operacions.")),
+    ],
 ) -> str:
     """Llista les taules disponibles d'una operació estadística de l'INE.
 
@@ -1859,7 +2149,7 @@ async def ine_taules(
     """
     try:
         taules = await ine.llistar_taules(operacio)
-    except Exception:
+    except httpx.HTTPError:
         return f"Error consultant les taules de l'operació '{operacio}'."
 
     if not taules:
@@ -1867,10 +2157,12 @@ async def ine_taules(
 
     records = []
     for t in taules[:50]:
-        records.append({
-            "id": t.get("Id", t.get("id", "")),
-            "nom": t.get("Nombre", t.get("nombre", "")),
-        })
+        records.append(
+            {
+                "id": t.get("Id", t.get("id", "")),
+                "nom": t.get("Nombre", t.get("nombre", "")),
+            }
+        )
 
     header = f"Total: {len(taules)} taules per '{operacio}'.\n\n"
     return header + json.dumps(records, ensure_ascii=False, indent=2)
@@ -1888,7 +2180,7 @@ async def ine_dades_taula(
     """
     try:
         dades = await ine.obtenir_dades_taula(taula_id, nult=nult)
-    except Exception:
+    except httpx.HTTPError:
         return f"Error obtenint dades de la taula {taula_id}."
 
     if not dades:
@@ -1908,7 +2200,7 @@ async def ine_serie(
     """
     try:
         dades = await ine.obtenir_serie(serie, nult=nult)
-    except Exception:
+    except httpx.HTTPError:
         return f"Error obtenint la sèrie '{serie}'."
 
     if not dades:
@@ -1924,14 +2216,19 @@ async def ine_serie(
 
 @mcp.tool()
 async def bde_serie(
-    series: Annotated[str, Field(description=(
-        "Codis de sèries separats per comes. Exemples: "
-        "'D_1NBAF472' (Euribor 1 any), "
-        "'D_1NBAF474' (Euribor 3 mesos), "
-        "'D_1AEA8S1' (IPC general), "
-        "'D_1BE9994' (Deute públic), "
-        "'D_1NBAF468' (Tipus interès BCE)"
-    ))],
+    series: Annotated[
+        str,
+        Field(
+            description=(
+                "Codis de sèries separats per comes. Exemples: "
+                "'D_1NBAF472' (Euribor 1 any), "
+                "'D_1NBAF474' (Euribor 3 mesos), "
+                "'D_1AEA8S1' (IPC general), "
+                "'D_1BE9994' (Deute públic), "
+                "'D_1NBAF468' (Tipus interès BCE)"
+            )
+        ),
+    ],
 ) -> str:
     """Obté l'últim valor de sèries financeres del Banc d'Espanya.
 
@@ -1940,7 +2237,7 @@ async def bde_serie(
     """
     try:
         result = await bde.obtenir_ultim_valor(series)
-    except Exception:
+    except httpx.HTTPError:
         return f"Error consultant el Banc d'Espanya per les sèries '{series}'."
 
     if not result:
@@ -1948,14 +2245,16 @@ async def bde_serie(
 
     records = []
     for item in result if isinstance(result, list) else [result]:
-        records.append({
-            "serie": item.get("serie", ""),
-            "descripcio": item.get("descripcionCorta", ""),
-            "valor": item.get("valor"),
-            "data": item.get("fechaValor", ""),
-            "unitat": item.get("simbolo", ""),
-            "frequencia": item.get("codFrecuencia", ""),
-        })
+        records.append(
+            {
+                "serie": item.get("serie", ""),
+                "descripcio": item.get("descripcionCorta", ""),
+                "valor": item.get("valor"),
+                "data": item.get("fechaValor", ""),
+                "unitat": item.get("simbolo", ""),
+                "frequencia": item.get("codFrecuencia", ""),
+            }
+        )
 
     return json.dumps(records, ensure_ascii=False, indent=2)
 
@@ -1970,7 +2269,7 @@ async def bde_series_destacades() -> str:
     codis = ",".join(bde.SERIES_DESTACADES.values())
     try:
         result = await bde.obtenir_ultim_valor(codis)
-    except Exception:
+    except httpx.HTTPError:
         return "Error consultant el Banc d'Espanya."
 
     if not result:
@@ -1978,13 +2277,15 @@ async def bde_series_destacades() -> str:
 
     records = []
     for item in result if isinstance(result, list) else [result]:
-        records.append({
-            "serie": item.get("serie", ""),
-            "descripcio": item.get("descripcionCorta", ""),
-            "valor": item.get("valor"),
-            "data": item.get("fechaValor", ""),
-            "unitat": item.get("simbolo", ""),
-        })
+        records.append(
+            {
+                "serie": item.get("serie", ""),
+                "descripcio": item.get("descripcionCorta", ""),
+                "valor": item.get("valor"),
+                "data": item.get("fechaValor", ""),
+                "unitat": item.get("simbolo", ""),
+            }
+        )
 
     return json.dumps(records, ensure_ascii=False, indent=2)
 
@@ -1996,9 +2297,7 @@ async def bde_series_destacades() -> str:
 
 @mcp.tool()
 async def pge_estructura(
-    any_: Annotated[int, Field(description=(
-        "Any dels pressupostos (2015-2025). Ex: 2024"
-    ))] = 2024,
+    any_: Annotated[int, Field(description=("Any dels pressupostos (2015-2025). Ex: 2024"))] = 2024,
 ) -> str:
     """Obté l'estructura dels Pressupostos Generals de l'Estat.
 
@@ -2011,16 +2310,13 @@ async def pge_estructura(
 
     try:
         index = await pge.obtenir_index(any_)
-    except Exception:
+    except httpx.HTTPError:
         return f"Error obtenint els PGE de l'any {any_}."
 
     # Extreure seccions (ministeris) — l'XML té 2 nivells: Gastos > SAL > Seccions
     estructura = index.get("Estructura", {})
     sector = estructura.get("Estructura", {})
-    if isinstance(sector, dict):
-        seccions_raw = sector.get("Estructura", [])
-    else:
-        seccions_raw = sector
+    seccions_raw = sector.get("Estructura", []) if isinstance(sector, dict) else sector
     if isinstance(seccions_raw, dict):
         seccions_raw = [seccions_raw]
 
@@ -2040,14 +2336,44 @@ async def pge_estructura(
                     if url.endswith(".CSV") or url.endswith(".csv"):
                         csv_links.append(url)
 
-        records.append({
-            "codi": seccio.get("codigo", ""),
-            "nom": seccio.get("literal", ""),
-            "subsectors": len(subsectors),
-            "csv_disponibles": len(csv_links),
-        })
+        records.append(
+            {
+                "codi": seccio.get("codigo", ""),
+                "nom": seccio.get("literal", ""),
+                "subsectors": len(subsectors),
+                "csv_disponibles": len(csv_links),
+            }
+        )
 
     header = f"PGE {any_}: {len(records)} seccions (ministeris).\n\n"
+    return header + json.dumps(records, ensure_ascii=False, indent=2)
+
+
+@mcp.tool()
+async def pge_despeses(
+    any_: Annotated[int, Field(description="Any dels pressupostos (2019, 2023, 2024)")] = 2024,
+    seccio: Annotated[
+        str | None,
+        Field(description="Filtrar per secció/ministeri (nom o codi). Ex: 'Defensa', 'Interior', '14'"),
+    ] = None,
+) -> str:
+    """Obté les despeses dels Pressupostos Generals de l'Estat.
+
+    Descarrega i parseja els CSV de despeses per programa/ministeri.
+    Retorna partides amb imports reals per programa pressupostari.
+    """
+    if any_ not in pge.ANYS_DISPONIBLES:
+        return f"Any {any_} no disponible. Anys vàlids: {pge.ANYS_DISPONIBLES}"
+
+    try:
+        records = await pge.obtenir_despeses(any_, seccio=seccio)
+    except httpx.HTTPError:
+        return f"Error obtenint les despeses dels PGE de l'any {any_}."
+
+    if not records:
+        return f"No s'han trobat dades de despeses per l'any {any_}" + (f" i secció '{seccio}'" if seccio else "") + "."
+
+    header = f"PGE {any_}: {len(records)} partides de despesa.\n\n"
     return header + json.dumps(records, ensure_ascii=False, indent=2)
 
 

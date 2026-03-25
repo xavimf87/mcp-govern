@@ -2,7 +2,7 @@
 
 Servidor MCP (Model Context Protocol) expert en **transparencia publica** i **deteccio de patrons de corrupcio** a partir de dades obertes del **Govern de Catalunya**, l'**Ajuntament de Barcelona** i fonts de dades de tota **Espanya**.
 
-Contractes, subvencions, sous, pressupostos, lobbies, viatges, sentencies judicials, nomenaments del BOE, registre mercantil (BORME), estadistiques INE, dades financeres del Banc d'Espanya i pressupostos de l'Estat — 47 tools que creuen automaticament 45+ datasets per trobar anomalies, fraccionaments i conflictes d'interes.
+Contractes, subvencions, sous, pressupostos, lobbies, viatges, sentencies judicials, nomenaments del BOE, normativa del DOGC, registre mercantil (BORME), estadistiques INE, dades financeres del Banc d'Espanya i pressupostos de l'Estat — 49 tools que creuen automaticament 45+ datasets per trobar anomalies, fraccionaments i conflictes d'interes.
 
 ## Que es un MCP?
 
@@ -30,124 +30,76 @@ Per exemple:
 | [BORME](https://www.boe.es/datosabiertos/) | Espanya | REST (JSON/XML) |
 | [INE](https://servicios.ine.es/wstempus/js/) | Espanya | REST (JSON) |
 | [Banc d'Espanya](https://app.bde.es/bierest/) | Espanya | REST (JSON) |
+| [DOGC](https://analisi.transparenciacatalunya.cat) | Catalunya | Socrata (SODA) |
 | [PGE](https://www.hacienda.gob.es) | Espanya | XML + CSV |
 
 No requereix autenticacio ni API keys. Totes les dades son publiques.
 
-## Guia d'instal·lacio pas a pas
+## Instal·lacio rapida
 
-### Requisits previs
-
-Nomes necessites dues coses:
-
-1. **Claude Code** o **Claude Desktop** — L'aplicacio de Claude que fara servir el MCP.
-   - Claude Code: [claude.com/claude-code](https://claude.com/claude-code)
-   - Claude Desktop: [claude.ai/download](https://claude.ai/download)
-
-2. **uv** — Gestor de paquets de Python. Si no el tens, instal·la'l amb:
+Nomes cal **uv** i **Claude Code** (o Claude Desktop).
 
 ```bash
-# macOS / Linux
+# 1. Instal·la uv (si no el tens)
 curl -LsSf https://astral.sh/uv/install.sh | sh
 
-# Windows
-powershell -ExecutionPolicy ByPass -c "irm https://astral.sh/uv/install.ps1 | iex"
+# 2. Connecta amb Claude Code (una sola comanda)
+claude mcp add --transport stdio mcp-govern -- uvx mcp-govern
 ```
 
-### Pas 1: Descarregar el projecte
+Ja esta. Obre Claude Code i pregunta: *"Quant cobra el president de la Generalitat?"*
 
-Obre un terminal i executa:
+No cal clonar cap repositori. `uvx` descarrega i executa el paquet directament des de PyPI.
+
+### Claude Desktop
+
+1. Obre **Settings** → **Developer** → **Edit Config**
+2. Afegeix:
+
+```json
+{
+  "mcpServers": {
+    "govern": {
+      "command": "uvx",
+      "args": ["mcp-govern"]
+    }
+  }
+}
+```
+
+3. Reinicia Claude Desktop
+
+### Instal·lacio des del codi font (desenvolupadors)
+
+Si vols modificar el codi o contribuir:
 
 ```bash
 git clone https://github.com/xavimf87/mcp-govern.git
 cd mcp-govern
 uv sync
-```
 
-Aixo descarrega el codi i instal·la totes les dependencies automaticament.
-
-### Pas 2: Connectar amb Claude
-
-Tria la opcio que facis servir:
-
-#### Opcio A: Claude Code (recomanat)
-
-Executa aquesta comanda al terminal:
-
-```bash
+# Connectar la versio local
 claude mcp add --transport stdio mcp-govern -- uv run --directory /ruta/a/mcp-govern mcp-govern
 ```
 
-Substitueix `/ruta/a/mcp-govern` per la ruta real on has descarregat el projecte. Per exemple:
-- macOS: `/Users/elteunomdusuari/mcp-govern`
-- Linux: `/home/elteunomdusuari/mcp-govern`
-- Windows: `C:\Users\elteunomdusuari\mcp-govern`
+### Verificar que funciona
 
-Per verificar que funciona, executa `/mcp` dins de Claude Code i comprova que `mcp-govern` apareix com a `connected`.
+Dins de Claude Code, executa `/mcp` i comprova que `mcp-govern` apareix com a `connected`.
 
-#### Opcio B: Claude Desktop
-
-1. Obre Claude Desktop
-2. Ves a **Settings** → **Developer** → **Edit Config**
-3. Afegeix dins de `mcpServers`:
-
-```json
-{
-  "mcpServers": {
-    "govern": {
-      "command": "uv",
-      "args": ["run", "--directory", "/ruta/a/mcp-govern", "mcp-govern"]
-    }
-  }
-}
-```
-
-4. Reinicia Claude Desktop
-
-#### Opcio C: Configuracio manual (avancada)
-
-Si prefereixes editar els fitxers de configuracio directament:
-
-**Claude Code global** (`~/.claude.json`):
-```json
-{
-  "mcpServers": {
-    "govern": {
-      "command": "uv",
-      "args": ["run", "--directory", "/ruta/a/mcp-govern", "mcp-govern"]
-    }
-  }
-}
-```
-
-**Claude Code per projecte** (`.mcp.json` a l'arrel del projecte):
-```json
-{
-  "mcpServers": {
-    "govern": {
-      "command": "uv",
-      "args": ["run", "--directory", "/ruta/a/mcp-govern", "mcp-govern"]
-    }
-  }
-}
-```
-
-### Pas 3: Comprovar que funciona
-
-Obre Claude i pregunta:
+Despres pregunta:
 
 > Quant cobra el president de la Generalitat?
 
-Si veus que Claude fa una crida a `govern - cercar_retribucions_alts_carrecs` i retorna el sou, tot funciona correctament.
+Si Claude crida `govern - cercar_retribucions_alts_carrecs` i retorna el sou, tot funciona.
 
 ### Resolucio de problemes
 
 | Problema | Solucio |
 |---|---|
-| `govern` no apareix a `/mcp` | Comprova que la ruta al projecte es correcta. Reinicia Claude. |
-| Error `uv: command not found` | Instal·la `uv` (veure requisits previs). Si l'acabes d'instal·lar, reinicia el terminal. |
+| `govern` no apareix a `/mcp` | Reinicia Claude Code. Si uses codi font, comprova la ruta. |
+| Error `uv: command not found` | Instal·la `uv` amb la comanda de dalt. Reinicia el terminal. |
 | Error de connexio | Les APIs publiques poden estar temporalment caigudes. Torna-ho a provar mes tard. |
-| `govern` apareix com `error` | Executa `uv run --directory /ruta/a/mcp-govern mcp-govern` al terminal per veure l'error concret. |
+| `govern` apareix com `error` | Executa `uvx mcp-govern` al terminal per veure l'error concret. |
 
 ## Deteccio de corrupcio
 
@@ -239,13 +191,13 @@ Quan presenta resultats d'investigacio, Claude:
 - **No acusa directament** — presenta els patrons i deixa que l'usuari tregui conclusions
 - Suggereix sempre **linies d'investigacio addicionals** per aprofundir
 
-## Tools disponibles (47)
+## Tools disponibles (49)
 
 ### Investigacio
 
 | Tool | Descripcio |
 |---|---|
-| `investigar_entitat` | **Investiga una empresa o persona creuant TOTES les fonts** (contractes, menors, PSCP, subvencions, lobbies, retribucions, declaracions, viatges) en una sola crida. Genera un informe complet. |
+| `investigar_entitat` | **Investiga una empresa o persona creuant TOTES les fonts** (contractes, menors, PSCP, subvencions, lobbies, retribucions, declaracions, viatges) en una sola crida. Accepta un CIF/NIF opcional per identificacio univoca. Genera un informe complet. |
 | `detectar_concentracio_contractes` | Detecta empreses que acumulen un % anomal de contractes d'un departament. Top N per nombre i import. |
 | `detectar_fraccionament` | Analitza si una empresa rep molts contractes menors sospitosos. Calcula imports, distribucio per departament i genera alertes automatiques. |
 
@@ -270,7 +222,7 @@ Quan presenta resultats d'investigacio, Claude:
 
 | Tool | Descripcio |
 |---|---|
-| `bdns_cercar_concessions` | Subvencions de tota Espanya. **Inclou noms reals** de beneficiaris (persones fisiques i juridiques). Filtra per dates. |
+| `bdns_cercar_concessions` | Subvencions de tota Espanya. **Inclou noms reals** de beneficiaris (persones fisiques i juridiques). Filtra per **text, organ, comunitat autonoma** i dates. |
 | `bdns_cercar_convocatories` | Convocatories de subvencions a nivell estatal. |
 | `bdns_detall_convocatoria` | Detall complet d'una convocatoria BDNS. |
 
@@ -335,8 +287,14 @@ Quan presenta resultats d'investigacio, Claude:
 | `boe_sumari` | Sumari diari del BOE. Filtra per data, seccio i departament. Inclou totes les publicacions oficials. |
 | `boe_nomenaments` | Nomenaments, cessaments i situacions de personal (seccio 2A). Clau per detectar portes giratories. |
 | `boe_contractes` | Anuncis de contractacio del sector public publicats al BOE (seccio 5A). |
-| `boe_legislacio` | Legislacio consolidada d'Espanya. Normes vigents amb rang, ambit i estat de consolidacio. |
+| `boe_legislacio` | Legislacio consolidada d'Espanya. Filtra per **titol, departament, rang normatiu i materia**. Normes vigents amb ambit i estat de consolidacio. |
 | `boe_departaments` | Llista completa dels 211 departaments del BOE per filtrar consultes. |
+
+### DOGC - Diari Oficial de la Generalitat de Catalunya
+
+| Tool | Descripcio |
+|---|---|
+| `dogc_cercar_normativa` | Cerca normativa al DOGC: lleis, decrets, ordres, resolucions. Filtra per titol, rang normatiu i any. |
 
 ### BORME - Registre Mercantil (Espanya)
 
@@ -364,7 +322,8 @@ Quan presenta resultats d'investigacio, Claude:
 
 | Tool | Descripcio |
 |---|---|
-| `pge_estructura` | Estructura dels PGE per any (2015-2025): seccions (ministeris), subsectors i programes. |
+| `pge_estructura` | Estructura dels PGE per any (2019, 2023, 2024): seccions (ministeris), subsectors i programes. |
+| `pge_despeses` | **Despeses reals dels PGE** per programa/ministeri. Descarrega i parseja els CSV amb imports per partida. **Nota**: nomes disponible per anys on Hisenda publica CSVs al XML (2019). Els anys 2023-2024 nomes tenen PDFs. |
 
 ### Utilitats
 
@@ -379,7 +338,7 @@ Quan presenta resultats d'investigacio, Claude:
 
 > Investiga Telefonica: contractes, subvencions, reunions amb lobbies, tot.
 
-Usa `investigar_entitat` amb `nom="Telefonica"`. Creua 10 fonts de dades en paral·lel i genera un informe amb totes les aparicions.
+Usa `investigar_entitat` amb `nom="Telefonica"`. Creua 13 fonts de dades en paral·lel i genera un informe amb totes les aparicions. Si coneixes el CIF, usa `cif="A28015865"` per resultats mes precisos.
 
 ### Detectar fraccionament de contractes
 
@@ -422,6 +381,10 @@ Usa `consultar_taules_salarials` amb `cos="mossos"`, `categoria="Inspector"`.
 > Qui ha rebut subvencions publiques al marc 2026?
 
 Usa `bdns_cercar_concessions` amb `data_desde="01/03/2026"`, `data_fins="31/03/2026"`. La BDNS inclou noms de persones fisiques (amb NIF parcialment ocult).
+
+> Quines subvencions ha rebut Telefonica a Catalunya?
+
+Usa `bdns_cercar_concessions` amb `texto="Telefonica"`, `comunitat="CATALUÑA"`.
 
 ### Reunions amb lobbies
 
@@ -489,6 +452,20 @@ Usa `boe_contractes` amb `data="20260314"`, `departament="Defensa"`.
 
 Usa `boe_legislacio` per veure les normes mes recentment actualitzades.
 
+> Busca lleis sobre transparencia del Ministerio de Hacienda.
+
+Usa `boe_legislacio` amb `titol="transparencia"`, `departament="Hacienda"`, `rang="Ley"`.
+
+### Normativa del DOGC
+
+> Quins decrets s'han publicat al DOGC el 2025?
+
+Usa `dogc_cercar_normativa` amb `rang="Decret"`, `any_="2025"`.
+
+> Busca normativa sobre educacio al DOGC.
+
+Usa `dogc_cercar_normativa` amb `titol="educació"` o `cerca_lliure="educació"`.
+
 ### Registre Mercantil (BORME)
 
 > Quines empreses s'han inscrit avui a Barcelona?
@@ -512,6 +489,12 @@ Usa `bde_serie` amb `series="D_1NBAF472"` o `bde_series_destacades` per veure to
 > Quins ministeris tenen mes pressupost el 2024?
 
 Usa `pge_estructura` amb `any_=2024`.
+
+> Quant gasta el Ministeri de Defensa per programa?
+
+Usa `pge_despeses` amb `any_=2019`, `seccio="Defensa"`. Retorna imports reals per partida pressupostaria.
+
+> **Nota**: `pge_despeses` nomes funciona per anys on Hisenda publica fitxers CSV al seu XML d'index. Actualment nomes el 2019 te CSVs. Per 2023-2024, usa `pge_estructura` per veure l'arbre de ministeris i programes.
 
 ## Datasets
 
@@ -570,6 +553,12 @@ Usa `pge_estructura` amb `any_=2024`.
 | `agenda_lobbies` | `hd8k-y28e` | Reunions amb lobbies |
 | `viatges_alts_carrecs` | `5kte-hque` | Viatges a l'estranger |
 | `docencia_alts_carrecs` | `w7dd-bwpy` | Docencia universitaria |
+
+### Normativa
+
+| Clau | ID | Font |
+|---|---|---|
+| `normativa_dogc` | `n6hn-rmy7` | Normativa del DOGC i del Portal Juridic de Catalunya |
 
 ### Fiscalitat
 

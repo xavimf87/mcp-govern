@@ -2,10 +2,12 @@
 
 from __future__ import annotations
 
-import httpx
+from . import http
 
 BASE_URL = "https://www.boe.es/datosabiertos/api"
 REQUEST_TIMEOUT = 30.0
+
+_ACCEPT_JSON = {"Accept": "application/json"}
 
 
 async def obtenir_sumari(data: str) -> dict:
@@ -14,13 +16,11 @@ async def obtenir_sumari(data: str) -> dict:
     Args:
         data: Data en format YYYYMMDD (ex: '20260314').
     """
-    async with httpx.AsyncClient(timeout=REQUEST_TIMEOUT) as client:
-        resp = await client.get(
-            f"{BASE_URL}/boe/sumario/{data}",
-            headers={"Accept": "application/json"},
-        )
-        resp.raise_for_status()
-        return resp.json()
+    return await http.fetch_json(
+        f"{BASE_URL}/boe/sumario/{data}",
+        headers=_ACCEPT_JSON,
+        timeout=REQUEST_TIMEOUT,
+    )
 
 
 async def cercar_legislacio(
@@ -30,51 +30,46 @@ async def cercar_legislacio(
 ) -> dict:
     """Cerca legislació consolidada.
 
+    L'API del BOE no suporta filtres, només paginació.
+    El filtrat per títol/departament/rang es fa al servidor MCP.
+
     Args:
         limit: Nombre de resultats.
         offset: Offset per paginació.
     """
-    async with httpx.AsyncClient(timeout=REQUEST_TIMEOUT) as client:
-        resp = await client.get(
-            f"{BASE_URL}/legislacion-consolidada",
-            params={"limit": limit, "offset": offset},
-            headers={"Accept": "application/json"},
-        )
-        resp.raise_for_status()
-        return resp.json()
+    return await http.fetch_json(
+        f"{BASE_URL}/legislacion-consolidada",
+        params={"limit": limit, "offset": offset},
+        headers=_ACCEPT_JSON,
+        timeout=REQUEST_TIMEOUT,
+    )
 
 
 async def obtenir_departaments() -> dict:
     """Obté la llista de departaments del BOE."""
-    async with httpx.AsyncClient(timeout=REQUEST_TIMEOUT) as client:
-        resp = await client.get(
-            f"{BASE_URL}/datos-auxiliares/departamentos",
-            headers={"Accept": "application/json"},
-        )
-        resp.raise_for_status()
-        return resp.json()
+    return await http.fetch_json(
+        f"{BASE_URL}/datos-auxiliares/departamentos",
+        headers=_ACCEPT_JSON,
+        timeout=REQUEST_TIMEOUT,
+    )
 
 
 async def obtenir_rangs() -> dict:
     """Obté la llista de rangs normatius del BOE."""
-    async with httpx.AsyncClient(timeout=REQUEST_TIMEOUT) as client:
-        resp = await client.get(
-            f"{BASE_URL}/datos-auxiliares/rangos",
-            headers={"Accept": "application/json"},
-        )
-        resp.raise_for_status()
-        return resp.json()
+    return await http.fetch_json(
+        f"{BASE_URL}/datos-auxiliares/rangos",
+        headers=_ACCEPT_JSON,
+        timeout=REQUEST_TIMEOUT,
+    )
 
 
 async def obtenir_materies() -> dict:
     """Obté la llista de matèries del BOE."""
-    async with httpx.AsyncClient(timeout=REQUEST_TIMEOUT) as client:
-        resp = await client.get(
-            f"{BASE_URL}/datos-auxiliares/materias",
-            headers={"Accept": "application/json"},
-        )
-        resp.raise_for_status()
-        return resp.json()
+    return await http.fetch_json(
+        f"{BASE_URL}/datos-auxiliares/materias",
+        headers=_ACCEPT_JSON,
+        timeout=REQUEST_TIMEOUT,
+    )
 
 
 async def obtenir_sumari_borme(data: str) -> dict:
@@ -83,10 +78,8 @@ async def obtenir_sumari_borme(data: str) -> dict:
     Args:
         data: Data en format YYYYMMDD (ex: '20260314').
     """
-    async with httpx.AsyncClient(timeout=REQUEST_TIMEOUT) as client:
-        resp = await client.get(
-            f"{BASE_URL}/borme/sumario/{data}",
-            headers={"Accept": "application/json"},
-        )
-        resp.raise_for_status()
-        return resp.json()
+    return await http.fetch_json(
+        f"{BASE_URL}/borme/sumario/{data}",
+        headers=_ACCEPT_JSON,
+        timeout=REQUEST_TIMEOUT,
+    )
