@@ -35,26 +35,35 @@ Per exemple:
 
 No requereix autenticacio ni API keys. Totes les dades son publiques.
 
-## Instal·lacio rapida
+## Instal·lacio
 
-Nomes cal **uv** i **Claude Code** (o Claude Desktop).
+### Opcio A: amb uv (recomanat)
+
+No cal instal·lar res permanentment. `uvx` descarrega i executa el paquet directament des de PyPI.
 
 ```bash
 # 1. Instal·la uv (si no el tens)
-curl -LsSf https://astral.sh/uv/install.sh | sh
+curl -LsSf https://astral.sh/uv/install.sh | sh   # macOS / Linux
+powershell -ExecutionPolicy ByPass -c "irm https://astral.sh/uv/install.ps1 | iex"  # Windows
 
 # 2. Connecta amb Claude Code (una sola comanda)
 claude mcp add --transport stdio mcp-govern -- uvx mcp-govern
 ```
 
-Ja esta. Obre Claude Code i pregunta: *"Quant cobra el president de la Generalitat?"*
+### Opcio B: amb pip
 
-No cal clonar cap repositori. `uvx` descarrega i executa el paquet directament des de PyPI.
+Si ja tens Python instal·lat i prefereixes pip:
+
+```bash
+pip install mcp-govern
+
+# Connecta amb Claude Code
+claude mcp add --transport stdio mcp-govern -- mcp-govern
+```
 
 ### Claude Desktop
 
-1. Obre **Settings** → **Developer** → **Edit Config**
-2. Afegeix:
+Obre **Settings** → **Developer** → **Edit Config** i afegeix:
 
 ```json
 {
@@ -67,7 +76,19 @@ No cal clonar cap repositori. `uvx` descarrega i executa el paquet directament d
 }
 ```
 
-3. Reinicia Claude Desktop
+O si has instal·lat amb pip:
+
+```json
+{
+  "mcpServers": {
+    "govern": {
+      "command": "mcp-govern"
+    }
+  }
+}
+```
+
+Reinicia Claude Desktop.
 
 ### Instal·lacio des del codi font (desenvolupadors)
 
